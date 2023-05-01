@@ -1,0 +1,12 @@
+version: '3.1'
+services:
+  galaxygpt-api:
+    container_name: galaxygpt-api
+    image: galaxygpt-api
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+#    ports:
+#      - "3636:3636"
+    restart: always
+    network_mode: host

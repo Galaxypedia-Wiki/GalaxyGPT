@@ -33,8 +33,9 @@ df.head()
 @limiter.limit("10/30 seconds")
 def ask():
     question = flask.request.json['prompt']
-    print(question + " - " + flask.request.headers['X-Forwarded-For'])
-    answer = answer_question(df, question=question)
+#    print(question + " - " + flask.request.headers['X-Forwarded-For'])
+    print(question + " - " + get_proxy_remote_address())
+    answer = answer_question(df, question=question, debug=True)
     print(answer)
     return flask.jsonify(answer)
     

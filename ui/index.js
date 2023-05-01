@@ -20,7 +20,7 @@ async function submitthedataidk() {
     });
     
     if (data.status != 200) {
-        responsesection.innerHTML = "Error: " + (await data.text());
+        responsesection.innerHTML = "Error: " + (await data.json());
         promptinput.disabled = false;
         submitbutton.disabled = false;
         submitbutton.style.cursor = "pointer";
@@ -29,7 +29,7 @@ async function submitthedataidk() {
     }
 
     var datajson = await data.json();
-    responsesection.innerHTML = datajson;
+    responsesection.innerHTML = datajson.answer;
 
     promptinput.disabled = false;
     submitbutton.disabled = false;
