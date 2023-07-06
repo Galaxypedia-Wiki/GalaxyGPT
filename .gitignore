@@ -6,3 +6,4 @@ processed/
 *.tar.gz
 *.old
 galaxypedia.csv
+dataset-v*/
