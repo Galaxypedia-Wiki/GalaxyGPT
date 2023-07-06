@@ -13,4 +13,4 @@ services:
     env_file: .env
     environment:
       - DEBUG=True
-      - USE_WAITRESS=False
+      - USE_WAITRESS=True
