@@ -4,3 +4,5 @@ __pycache__
 processed/
 .idea/
 *.tar.gz
+*.old
+galaxypedia.csv
