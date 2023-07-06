@@ -10,3 +10,7 @@ services:
 #      - "3636:3636"
     restart: always
     network_mode: host
+    env_file: .env
+    environment:
+      - DEBUG=True
+      - USE_WAITRESS=False
