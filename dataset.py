@@ -287,7 +287,7 @@ if args.no_embeddings == False:
     spinner.succeed(f'Saved embedded dataset!')
 
 spinner = Halo(text=f'Copying initial dataset to output directory', spinner='dots')
-shutil.copyfile(datasetpath, os.path.join(__location__, outdir, datasetpath))
+shutil.copyfile(datasetpath, os.path.join(__location__, outdir, datasetname))
 spinner.succeed(f'Copied initial dataset to output directory!')
 
 print("Done!")
