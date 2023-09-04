@@ -16,8 +16,6 @@ import schedule
 import time
 import colorama
 from openai.embeddings_utils import distances_from_embeddings
-""" import chromadb
-from chromadb.utils import embedding_functions """
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -54,22 +52,6 @@ def loadDataset():
     print("Dataset loaded!")
 
 loadDataset()
-
-# Future code for ChromaDB support
-""" chroma_client = chromadb.Client()
-openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=os.getenv('OPENAI_API_KEY'),
-                model_name="text-embedding-ada-002"
-            )
-
-collection = chroma_client.get_or_create_collection(name="gpedia", embedding_function=openai_ef, metadata={ "hnsw:space": "cosine"})
-collection.upsert(
-    documents=df["content"].values.tolist(),
-    embeddings=df["embeddings"].values.tolist(),
-    ids=df["page_title"].values.tolist(),
-)
-
-print(collection.query(query_texts=["what is the deity?"])) """
 
 ################################################################################
 # Functions
