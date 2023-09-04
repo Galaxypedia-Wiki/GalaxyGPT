@@ -266,10 +266,10 @@ class ADCS:
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Stopping...")
         ADCS.timerbreak = True
 
-
-if __name__ == "__main__":
-    scheduler = ADCS()
-    scheduler.start()
+# Uncomment to test ADCS
+# if __name__ == "__main__":
+#     scheduler = ADCS()
+#     scheduler.start()
     
 """     print(
         answer_question(
