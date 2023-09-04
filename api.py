@@ -1,5 +1,5 @@
 import flask
-from main import answer_question, df
+from main import answer_question, df, ADCS
 import pandas as pd
 import numpy as np
 from flask_limiter import Limiter
@@ -31,9 +31,6 @@ limiter = Limiter(
 # Check if the dataset is set in the environment variables
 if not os.getenv("DATASET"):
     raise Exception("Please set the DATASET environment variable")
-
-dataset = str(os.getenv("DATASET"))
-
 
 # Create the API to answer questions
 @app.route("/api/v1/ask", methods=["POST"])
