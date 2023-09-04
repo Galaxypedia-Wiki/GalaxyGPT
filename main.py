@@ -1,3 +1,6 @@
+# Entrypoint for GalaxyGPT
+
+## Initalization
 import hashlib
 import os
 import sys
@@ -6,35 +9,53 @@ import numpy as np
 import openai
 import pandas as pd
 import tiktoken
+import warnings
+import subprocess
+import threading
+import schedule
+import time
+import colorama
 from openai.embeddings_utils import distances_from_embeddings
 """ import chromadb
 from chromadb.utils import embedding_functions """
 from dotenv import load_dotenv
 load_dotenv()
 
-GalaxyGPTVersion = "0.2.1"
+GalaxyGPTVersion = os.getenv("VERSION")
+if GalaxyGPTVersion == None:
+    raise Exception("Please set VERSION in .env")
 
 if not os.getenv("OPENAI_ORG_ID") or not os.getenv("OPENAI_API_KEY"):
-    print("Please set OPENAI_ORG_ID and OPENAI_API_KEY in .env")
-    sys.exit(1)
+    raise Exception("Please set OPENAI_ORG_ID and OPENAI_API_KEY in .env")
 
 openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-dataset = str(os.getenv("DATASET")) or "dataset-v3"
+dataset = str(os.getenv("DATASET"))
+if dataset == None:
+    raise Exception("Please set DATASET in .env")
+default_max_len = int(os.getenv("MAX_LEN", "2000"))
+
+print("GalaxyGPT v" + GalaxyGPTVersion + " - " + dataset + " - " + str(default_max_len) + " max len")
 
 ################################################################################
+# Load datasets
 
-print("Loading dataset...")
-df = pd.read_csv(os.path.join(__location__, dataset, "embeddings.csv"), index_col=0)
-df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
+def loadDataset():
+    print("Loading dataset...")
+    global df
+    
+    df = pd.read_csv(os.path.join(__location__, dataset, "embeddings.csv"), index_col=0)
+    df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
 
-df["page_titles"] = pd.read_csv(
-    os.path.join(__location__, dataset, "postprocessed.csv"), index_col=0
-)["page_title"]
+    df["page_titles"] = pd.read_csv(os.path.join(__location__, dataset, "processed.csv"), index_col=0)["page_title"]
+    print("Dataset loaded!")
 
+loadDataset()
+
+# Future code for ChromaDB support
 """ chroma_client = chromadb.Client()
 openai_ef = embedding_functions.OpenAIEmbeddingFunction(
                 api_key=os.getenv('OPENAI_API_KEY'),
@@ -50,8 +71,10 @@ collection.upsert(
 
 print(collection.query(query_texts=["what is the deity?"])) """
 
+################################################################################
+# Functions
 
-def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
+def create_context(question, df, max_len=default_max_len, model="text-embedding-ada-002"):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -82,11 +105,6 @@ def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
 
         # Else add it to the text that is being returned
         returns.append(row["content"].strip())
-        
-    print("bingus:", flush=True)
-    print(returns, flush=True)
-    print('-------------------', flush=True)
-    print(df["distances"].values.tolist(), flush=True)
 
     # Return the context
     return "\n\n###\n\n".join(returns), embeddingsusage
@@ -94,14 +112,13 @@ def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
 
 def answer_question(
         df: pd.DataFrame,
-        model="gpt-3.5-turbo-0613",
+        model="gpt-3.5-turbo",
         question="Hello!",
-        max_len=2000,
+        max_len=int(os.getenv("MAX_CONTEXT_LEN", "2500")),
         size="text-embedding-ada-002",
         debug=True,
         max_tokens=250,
         stop_sequence=None,
-        datasetver=dataset, 
         username: str | None = None,
 ):
     """
@@ -144,7 +161,7 @@ def answer_question(
     context = context[0].strip()
 
     if context == "":
-        print("Context is empty", flush=True)
+        warnings.warn("Context is empty")
         
         
     # If debug, print the raw model response
@@ -171,7 +188,7 @@ def answer_question(
                                + 'If a ship infobox is present in the context, prefer using data from within the infobox. An infobox can be found by looking for a wikitext template that has the word "infobox" in its name.\n'
                                + 'If the user is not asking a question (e.g. "thank you", "thanks for the help"): Respond to it and ask the user if they have any further questions.\n'
                                + 'Respond to greetings (e.g. "hi", "hello") with (in this exact order): A greeting, a brief description of yourself, and a question addressed to the user if they have a question or need assistance.\n\n'
-                               + 'Steps for responding: First check if the user is asking about a ship (e.g. "what is the deity?", "how much shield does the theia have?"), if so, use the ship\'s wiki page (supplied in the context) and the stats from the ship\'s infobox to answer the question. If you determine the user is not asking about a ship (e.g. "who is <player>?", "what is <item>?"), do your best to answer the question based on the context provided.',
+                               + 'Steps for responding:\nFirst check if the user is asking about a ship (e.g. "what is the deity?", "how much shield does the theia have?"), if so, use the ship\'s wiki page (supplied in the context) and the stats from the ship\'s infobox to answer the question. If you determine the user is not asking about a ship (e.g. "who is <player>?", "what is <item>?"), do your best to answer the question based on the context provided.',
                 },
                 {
                     "role": "user",
@@ -179,7 +196,7 @@ def answer_question(
                     "name": str(username) if username else "",
                 },
             ],
-            temperature=0,
+            temperature=0.2,
             max_tokens=max_tokens,
             top_p=1,
             frequency_penalty=0,
@@ -224,15 +241,59 @@ def answer_question(
         print(traceback.format_exc(), flush=True)
         raise e
 
+# Automatic Dataset Creation System
+class ADCS:
+    timer = None
+    timerbreak = False
+    
+    def createDataset(reload=False):
+        global df
+        global dataset
+        if os.getenv("DATABASE_PASSWORD") == None:
+            raise Exception("Please set DATABASE_PASSWORD in .env")
+        
+        # Generate the dataset
+        print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Generating a new dataset...")
+        subprocess.run(["./generate-dataset.sh", os.getenv("DATABASE_PASSWORD")], cwd=os.path.join(__location__))
+        
+        print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Preparing the dataset...")
+        # Prepare the dataset
+        subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--no-embeddings", "--cleandir"], cwd=os.path.join(__location__))
+        
+        if reload == True:
+            del df
+            dataset = "dataset-ADCS"
+            loadDataset()
+    
+    @staticmethod
+    def start():
+        print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Starting scheduler to run at 00:00...")
+        ADCS.timer = schedule.every().day.at("00:00").do(ADCS.createDataset, True)
+        
+        def loop():
+            while ADCS.timerbreak == False:
+                schedule.run_pending()
+                time.sleep(1)
+            print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Stopped!")
+                
+        threading.Thread(target=loop).start()
+        print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Started!")
+    
+    @staticmethod
+    def stop():
+        print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Stopping...")
+        ADCS.timerbreak = True
 
-# print(answer_question(df, question="What are some good strategies to be successful in Galaxy?", debug=True))
 
 if __name__ == "__main__":
-    print(
+    scheduler = ADCS()
+    scheduler.start()
+    
+"""     print(
         answer_question(
             df,
             question=sys.argv[1],
             debug=(True if len(sys.argv) < 3 or sys.argv[2] != "False" else False),
         ),
         flush=True,
-    )
+    ) """
