@@ -7,8 +7,6 @@ import openai
 import pandas as pd
 import tiktoken
 from openai.embeddings_utils import distances_from_embeddings
-""" import chromadb
-from chromadb.utils import embedding_functions """
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -34,21 +32,6 @@ df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
 df["page_titles"] = pd.read_csv(
     os.path.join(__location__, dataset, "postprocessed.csv"), index_col=0
 )["page_title"]
-
-""" chroma_client = chromadb.Client()
-openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=os.getenv('OPENAI_API_KEY'),
-                model_name="text-embedding-ada-002"
-            )
-
-collection = chroma_client.get_or_create_collection(name="gpedia", embedding_function=openai_ef, metadata={ "hnsw:space": "cosine"})
-collection.upsert(
-    documents=df["content"].values.tolist(),
-    embeddings=df["embeddings"].values.tolist(),
-    ids=df["page_title"].values.tolist(),
-)
-
-print(collection.query(query_texts=["what is the deity?"])) """
 
 
 def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
