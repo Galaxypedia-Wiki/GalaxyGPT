@@ -227,10 +227,23 @@ def answer_question(
 class ADCS:
     timer = None
     timerbreak = False
+    status = "Stopped" # Acceptable Values: "Stopped", "Running"
     
+    @staticmethod
+    def reloadDataset(newdataset):
+        global df, dataset
+        
+        try:
+            del df
+            dataset = newdataset
+            loadDataset()
+        except Exception as e:
+            print(traceback.format_exc(), flush=True)
+            raise e
+    
+    @staticmethod
     def createDataset(reload=False):
-        global df
-        global dataset
+        global df, dataset
         if os.getenv("DATABASE_PASSWORD") == None:
             raise Exception("Please set DATABASE_PASSWORD in .env")
         
@@ -243,12 +256,14 @@ class ADCS:
         subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--no-embeddings", "--cleandir"], cwd=os.path.join(__location__))
         
         if reload == True:
-            del df
-            dataset = "dataset-ADCS"
-            loadDataset()
+            ADCS.reloadDataset("dataset-ADCS")
     
     @staticmethod
     def start():
+        if ADCS.status == "Running":
+            print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Already running!")
+            return
+        
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Starting scheduler to run at 00:00...")
         ADCS.timer = schedule.every().day.at("00:00").do(ADCS.createDataset, True)
         
@@ -260,16 +275,22 @@ class ADCS:
                 
         threading.Thread(target=loop).start()
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Started!")
+        ADCS.status = "Running"
     
     @staticmethod
     def stop():
+        if ADCS.status == "Stopped":
+            print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Already stopped!")
+            return
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Stopping...")
         ADCS.timerbreak = True
+        ADCS.status = "Stopped"
 
 # Uncomment to test ADCS
-# if __name__ == "__main__":
-#     scheduler = ADCS()
-#     scheduler.start()
+if __name__ == "__main__":
+    scheduler = ADCS()
+    if scheduler.status == "Stopped":
+        scheduler.start()
     
 """     print(
         answer_question(
