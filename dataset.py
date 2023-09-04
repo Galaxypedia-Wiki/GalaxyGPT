@@ -1,4 +1,4 @@
-# Dataset Geneation Helper for GalaxyGPT
+# Dataset Preparation for GalaxyGPT
 
 import os
 import pandas as pd
@@ -26,12 +26,12 @@ olddatasets = [f for f in os.listdir('.') if re.match(r'^dataset-v\d$', f, flags
 # Arguments
 parser = argparse.ArgumentParser("GalaxyGPT Dataset Assistant", description="Generate a dataset for use with GalaxyGPT")
 parser.add_argument("--outdir", "-o", help="The output directory", type=str, required=True)
-parser.add_argument("--cleandir", help="Delete the contents of the output directory", action=argparse.BooleanOptionalAction, default=None)
+parser.add_argument("--cleandir", help="Delete the contents of the output directory if it exists", action=argparse.BooleanOptionalAction, default=None)
 parser.add_argument("--no-embeddings", help="Don't generate embeddings", action="store_true")
 parser.add_argument("--api-key", help="The OpenAI API key to use (defaults to env.OPENAI_API_KEY)", type=str, default=os.getenv("OPENAI_API_KEY"))
 parser.add_argument("--org-id", help="The OpenAI organization ID to use (defaults to env.OPENAI_ORG_ID)", type=str, default=os.getenv("OPENAI_ORG_ID"))
 parser.add_argument("--generate-dataset", help="Generate a new dataset", action="store_true", default=False)
-parser.add_argument("--max-len", help="The maximum token length of a chunk", type=int, required=True)
+parser.add_argument("--max-len", help="The maximum token length of a chunk (HIGHLY ADVISED TO SET THIS AS THE (MAXIMUM CONTEXT TOKEN LIMIT / 2))", type=int, required=True)
 parser.add_argument("--compress-old-datasets", help="Compress old datasets into their own respective tar.gz files so long as they follow the dataset-vX naming scheme", action="store_true", default=False)
 parser.add_argument("dataset", help="The path to the datset to use (not required if using --generate-dataset)", type=pathlib.Path, default="galaxypedia.csv", nargs='?')
 args = parser.parse_args()
@@ -179,7 +179,14 @@ contentprocessed = contentprocessed.str.replace(divregex, "", regex=True)
 spinner.succeed()
 
 spinner = Halo(text=f'Saving sanitized dataset', spinner='dots')
-df["content"] = df.page_title.str.lower().str.replace("_", " ") + ". " + contentprocessed
+
+# Remove rows with empty content
+df["content"] = contentprocessed.str.strip()
+rows_to_drop = df[df["content"]==''].index
+df.drop(rows_to_drop, inplace=True)
+# Assemble the final page content
+df["content"] = df.page_title.str.lower().str.replace("_", " ").str.strip() + ". " + df.content.str.strip()
+# Save
 df.to_csv(os.path.join(__location__, outdir, "processed.csv"))
 spinner.succeed(f'Saved sanitized dataset!')
 
@@ -280,7 +287,7 @@ if args.no_embeddings == False:
     
     df["embeddings"] = df.content.apply(idk)
     baller.close()
-    print(Fore.GREEN + "✔ " + Fore.RESET + " Embedded!")
+    print(Fore.GREEN + "✔ " + Fore.RESET + "Embedded!")
 
     spinner = Halo(text=f'Saving embedded dataset', spinner='dots')
     df.to_csv(os.path.join(__location__, outdir, "embeddings.csv"))
@@ -289,5 +296,8 @@ if args.no_embeddings == False:
 spinner = Halo(text=f'Copying initial dataset to output directory', spinner='dots')
 shutil.copyfile(datasetpath, os.path.join(__location__, outdir, datasetname))
 spinner.succeed(f'Copied initial dataset to output directory!')
+
+with open(os.path.join(__location__, outdir, "METADATA.txt"), "w") as file:
+    file.write(f"Dataset: {datasetname}\nTimestamp: {time.ctime(time.time())}\nMax_len: {max_tokens}")
 
 print("Done!")
