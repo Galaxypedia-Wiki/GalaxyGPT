@@ -15,6 +15,8 @@ import threading
 import schedule
 import time
 import colorama
+from discord_webhook import DiscordWebhook
+from distutils.util import strtobool
 from openai.embeddings_utils import distances_from_embeddings
 from dotenv import load_dotenv
 load_dotenv()
@@ -228,10 +230,14 @@ class ADCS:
     timer = None
     timerbreak = False
     status = "Stopped" # Acceptable Values: "Stopped", "Running"
+    webhook = DiscordWebhook(url=os.getenv("DISCORD_WEBHOOK_URL"))
     
     @staticmethod
     def reloadDataset(newdataset):
         global df, dataset
+        
+        if not os.path.exists(os.path.join(__location__, newdataset, "embeddings.csv")):
+            raise Exception("Embeddings were not generated")
         
         try:
             del df
@@ -242,7 +248,7 @@ class ADCS:
             raise e
     
     @staticmethod
-    def createDataset(reload=False):
+    def createDataset(reload=False, webhook=None, noembeddings=False):
         global df, dataset
         if os.getenv("DATABASE_PASSWORD") == None:
             raise Exception("Please set DATABASE_PASSWORD in .env")
@@ -253,10 +259,20 @@ class ADCS:
         
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Preparing the dataset...")
         # Prepare the dataset
-        subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--no-embeddings", "--cleandir"], cwd=os.path.join(__location__))
-        
-        if reload == True:
+        if noembeddings == True:
+            print("Won't be generating embeddings for this dataset")
+            subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--no-embeddings", "--cleandir"], cwd=os.path.join(__location__))
+        else:
+            subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--cleandir"], cwd=os.path.join(__location__))
+
+        if reload == True and noembeddings == False:
             ADCS.reloadDataset("dataset-ADCS")
+            
+        print("Dataset created!")
+        
+        if ADCS.webhook:
+            ADCS.webhook.set_content("Created new dataset")
+            ADCS.webhook.execute()
     
     @staticmethod
     def start():
@@ -276,6 +292,10 @@ class ADCS:
         threading.Thread(target=loop).start()
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Started!")
         ADCS.status = "Running"
+        
+        if ADCS.webhook:
+            ADCS.webhook.set_content("ADCS started")
+            ADCS.webhook.execute()
     
     @staticmethod
     def stop():
@@ -285,18 +305,26 @@ class ADCS:
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Stopping...")
         ADCS.timerbreak = True
         ADCS.status = "Stopped"
+        
+        if ADCS.webhook:
+            ADCS.webhook.set_content("ADCS stopped")
+            ADCS.webhook.execute()
 
-# Uncomment to test ADCS
-if __name__ == "__main__":
-    scheduler = ADCS()
-    if scheduler.status == "Stopped":
-        scheduler.start()
-    
-"""     print(
+adcsdefault = strtobool(os.getenv("ADCS", "False"))
+print("ADCS: " + str(adcsdefault))
+if adcsdefault == True:
+        scheduler = ADCS()
+        if scheduler.status == "Stopped":
+            scheduler.start()
+elif adcsdefault == False:
+    print("ADCS is currently disabled")            
+
+if __name__ == "__main__":    
+    print(
         answer_question(
             df,
             question=sys.argv[1],
             debug=(True if len(sys.argv) < 3 or sys.argv[2] != "False" else False),
         ),
         flush=True,
-    ) """
+    )

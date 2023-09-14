@@ -1,5 +1,5 @@
 import flask
-from main import answer_question, df, ADCS
+from main import answer_question, df, ADCS, dataset
 import pandas as pd
 import numpy as np
 from flask_limiter import Limiter
@@ -31,6 +31,8 @@ limiter = Limiter(
 # Check if the dataset is set in the environment variables
 if not os.getenv("DATASET"):
     raise Exception("Please set the DATASET environment variable")
+
+adcsservice = ADCS()
 
 # Create the API to answer questions
 @app.route("/api/v1/ask", methods=["POST"])
@@ -82,6 +84,35 @@ def index(path):
         if path.endswith("/"):
             return flask.send_from_directory('ui', path + "index.html")
         raise e """
+
+# ADCS API
+@app.route("/api/ADCS/start", methods=["POST"])
+def startADCS():
+    adcsservice.start()
+    return flask.jsonify({"status": "started"}), 200
+
+@app.route("/api/ADCS/stop", methods=["POST"])
+def stopADCS():
+    adcsservice.stop()
+    return flask.jsonify({"status": "stopped"}), 200
+
+@app.route("/api/ADCS/force-create", methods=["POST"])
+def forceCreateADCS():
+    reload = strtobool(flask.request.args.get("reload", default="True"))
+    noembeddings = strtobool(flask.request.args.get("noembeddings", default="False"))
+    
+    # For the time being, set noembeddings to True manually
+    noembeddings = True
+    
+    adcsservice.createDataset(reload=reload, noembeddings=noembeddings)
+    if reload:
+        return flask.jsonify({"status": "created a new dataset & reloaded"}), 200
+    elif not reload:
+        return flask.jsonify({"status": "created a new dataset"}), 200
+
+@app.route("/api/ADCS/status", methods=["GET"])
+def statusADCS():
+    return flask.jsonify({"status": adcsservice.status}), 200
 
 if __name__ == "__main__":
     debug = os.environ.get("DEBUG", True)
