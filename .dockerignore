@@ -2,3 +2,5 @@ venv
 .env
 ui
 .vscode
+.git
+**/.tar.gz
