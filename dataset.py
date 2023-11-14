@@ -31,7 +31,7 @@ parser.add_argument("--no-embeddings", help="Don't generate embeddings", action=
 parser.add_argument("--api-key", help="The OpenAI API key to use (defaults to env.OPENAI_API_KEY)", type=str, default=os.getenv("OPENAI_API_KEY"))
 parser.add_argument("--org-id", help="The OpenAI organization ID to use (defaults to env.OPENAI_ORG_ID)", type=str, default=os.getenv("OPENAI_ORG_ID"))
 parser.add_argument("--generate-dataset", help="Generate a new dataset", action="store_true", default=False)
-parser.add_argument("--max-len", help="The maximum token length of a chunk (HIGHLY ADVISED TO SET THIS AS THE (MAXIMUM CONTEXT TOKEN LIMIT / 2))", type=int, required=True)
+parser.add_argument("--max-len", help="The maximum token length of a chunk (HIGHLY ADVISED TO SET THIS AS THE (MAXIMUM CONTEXT LIMIT / 2))", type=int, required=True)
 parser.add_argument("--compress-old-datasets", help="Compress old datasets into their own respective tar.gz files so long as they follow the dataset-vX naming scheme", action="store_true", default=False)
 parser.add_argument("dataset", help="The path to the datset to use (not required if using --generate-dataset)", type=pathlib.Path, default="galaxypedia.csv", nargs='?')
 args = parser.parse_args()

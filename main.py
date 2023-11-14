@@ -33,12 +33,17 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-dataset = str(os.getenv("DATASET"))
+dataset = str(os.getenv("DATASET")) # Dataset to use
 if dataset == None:
     raise Exception("Please set DATASET in .env")
-default_max_len = int(os.getenv("MAX_LEN", "2000"))
+context_len = int(os.getenv("MAX_CONTEXT_LEN")) # Maximum context length in tokens
+if context_len == None:
+    raise Exception("Please set MAX_CONTEXT_LEN in .env")
+gpt_model = str(os.getenv("MODEL")) # Model to use
+if gpt_model == None:
+    raise Exception("Please set MODEL in .env")
 
-print("GalaxyGPT v" + GalaxyGPTVersion + " - " + dataset + " - " + str(default_max_len) + " max len")
+print("GalaxyGPT v" + GalaxyGPTVersion + " - " + dataset + " - " + str(context_len) + " max len")
 
 ################################################################################
 # Load datasets
@@ -58,7 +63,7 @@ loadDataset()
 ################################################################################
 # Functions
 
-def create_context(question, df, max_len=default_max_len, model="text-embedding-ada-002"):
+def create_context(question, df, max_len=context_len, model="text-embedding-ada-002"):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -96,9 +101,9 @@ def create_context(question, df, max_len=default_max_len, model="text-embedding-
 
 def answer_question(
         df: pd.DataFrame,
-        model="gpt-3.5-turbo",
+        model=gpt_model,
         question="Hello!",
-        max_len=int(os.getenv("MAX_CONTEXT_LEN", "2500")),
+        max_len=context_len,
         size="text-embedding-ada-002",
         debug=True,
         max_tokens=250,
@@ -122,7 +127,7 @@ def answer_question(
     enc = tiktoken.get_encoding("cl100k_base")
     questiontokens = enc.encode(question)
     if len(questiontokens) > max_tokens:
-        raise Exception("Question is too long (max 250 tokens)")
+        raise Exception("Question is too long")
 
     moderation = openai.Moderation.create(input=question)
     if debug:
@@ -213,6 +218,7 @@ def answer_question(
                 "stop_reason": response["choices"][0]["finish_reason"],
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
+                "model": model,
                 "extra": extrainfo.strip()
             }
         else:
@@ -261,9 +267,9 @@ class ADCS:
         # Prepare the dataset
         if noembeddings == True:
             print("Won't be generating embeddings for this dataset")
-            subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--no-embeddings", "--cleandir"], cwd=os.path.join(__location__))
+            subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(context_len/2)), "--no-embeddings", "--cleandir"], cwd=os.path.join(__location__))
         else:
-            subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(default_max_len/2)), "--cleandir"], cwd=os.path.join(__location__))
+            subprocess.run(["python3", "dataset.py", "-o", "dataset-ADCS", "--max-len", str(int(context_len/2)), "--cleandir"], cwd=os.path.join(__location__))
 
         if reload == True and noembeddings == False:
             ADCS.reloadDataset("dataset-ADCS")
