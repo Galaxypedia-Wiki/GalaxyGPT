@@ -4,3 +4,4 @@ ui
 .vscode
 .git
 **/.tar.gz
+__pycache__
