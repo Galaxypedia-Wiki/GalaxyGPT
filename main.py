@@ -3,10 +3,10 @@ import os
 import sys
 import traceback
 import numpy as np
-import openai
+from openai import OpenAI
+from scipy.spatial.distance import cosine
 import pandas as pd
 import tiktoken
-from openai.embeddings_utils import distances_from_embeddings
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -16,8 +16,10 @@ if not os.getenv("OPENAI_ORG_ID") or not os.getenv("OPENAI_API_KEY"):
     print("Please set OPENAI_ORG_ID and OPENAI_API_KEY in .env")
     sys.exit(1)
 
-openai.organization = os.getenv("OPENAI_ORG_ID")
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    organization=os.getenv("OPENAI_ORG_ID")
+)
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -40,16 +42,13 @@ def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
     """
 
     # Get the embeddings for the question
-    embeddings = openai.Embedding.create(input=question, engine=model)
+    embeddings = openai_client.embeddings.create(input=question, model=model)
 
-    q_embeddings = embeddings["data"][0]["embedding"]
+    q_embeddings = embeddings.data[0].embedding
 
-    embeddingsusage = embeddings["usage"]
-
+    embeddingsusage = embeddings.usage
     # Get the distances from the embeddings
-    df["distances"] = distances_from_embeddings(
-        q_embeddings, df["embeddings"].values, distance_metric="cosine"
-    )
+    df["distances"] = df["embeddings"].apply(lambda x: cosine(q_embeddings, x))
 
     returns = []
     cur_len = 0
@@ -106,19 +105,19 @@ def answer_question(
     if len(questiontokens) > max_tokens:
         raise Exception("Question is too long (max 250 tokens)")
 
-    moderation = openai.Moderation.create(input=question)
+    moderation = openai_client.moderations.create(input=question)
     if debug:
         import json
 
         print(
-            "Moderation:\n" + json.dumps(moderation["results"][0], indent=0), flush=True
+            "Moderation:\n" + str(moderation.results[0]), flush=True
         )
         print(
             "-----------------------------------------------------------------------------",
             flush=True,
         )
 
-    if moderation["results"][0]["flagged"]:
+    if moderation.results[0].flagged:
         raise Exception("Flagged by OpenAI Moderation System")
 
     context = create_context(question, df, max_len=max_len, model=size)
@@ -141,7 +140,7 @@ def answer_question(
     try:
         # Create a completions using the question and context
         raah = "\n\n"
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
@@ -176,6 +175,8 @@ def answer_question(
             ),
         )
 
+        response = json.loads(response.model_dump_json())
+
         if debug:
             print(
                 "User: "
@@ -188,10 +189,10 @@ def answer_question(
             )
             
             return {
-                "answer": response["choices"][0]["message"].content.strip(),
+                "answer": response["choices"][0]["message"]["content"].strip(),
                 "context": context,
                 "tokens": response["usage"],
-                "embeddings_usage": embeddingsusage,
+                "embeddings_usage": {"prompt_tokens": embeddingsusage.prompt_tokens, "total_tokens": embeddingsusage.total_tokens},
                 "stop_reason": response["choices"][0]["finish_reason"],
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
@@ -199,7 +200,7 @@ def answer_question(
             }
         else:
             return {
-                "answer": response["choices"][0]["message"].content.strip(),
+                "answer": response["choices"][0]["message"]["content"].strip(),
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
             }
