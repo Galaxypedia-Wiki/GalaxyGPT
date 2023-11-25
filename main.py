@@ -26,12 +26,16 @@ dataset = str(os.getenv("DATASET")) or "dataset-v3"
 ################################################################################
 
 print("Loading dataset...")
-df = pd.read_csv(os.path.join(__location__, dataset, "embeddings.csv"), index_col=0)
-df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
+try:
+    df = pd.read_csv(os.path.join(__location__, dataset, "embeddings.csv"), index_col=0)
+    df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
 
-df["page_titles"] = pd.read_csv(
-    os.path.join(__location__, dataset, "postprocessed.csv"), index_col=0
-)["page_title"]
+    df["page_titles"] = pd.read_csv(
+        os.path.join(__location__, dataset, "postprocessed.csv"), index_col=0
+    )["page_title"]
+except Exception as e:
+    print(traceback.format_exc(), flush=True)
+    raise e
 
 
 def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
@@ -39,8 +43,12 @@ def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
     Create a context for a question by finding the most similar context from the dataframe
     """
 
-    # Get the embeddings for the question
-    embeddings = openai.Embedding.create(input=question, engine=model)
+    try:
+        # Get the embeddings for the question
+        embeddings = openai.Embedding.create(input=question, engine=model)
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        raise e
 
     q_embeddings = embeddings["data"][0]["embedding"]
 
@@ -100,11 +108,15 @@ def answer_question(
     if df.empty:
         raise Exception("Dataframe is empty")
 
-    # Make sure the question is under 250 tokens
-    enc = tiktoken.get_encoding("cl100k_base")
-    questiontokens = enc.encode(question)
-    if len(questiontokens) > max_tokens:
-        raise Exception("Question is too long (max 250 tokens)")
+    try:
+        # Make sure the question is under 250 tokens
+        enc = tiktoken.get_encoding("cl100k_base")
+        questiontokens = enc.encode(question)
+        if len(questiontokens) > max_tokens:
+            raise Exception("Question is too long (max 250 tokens)")
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        raise e
 
     moderation = openai.Moderation.create(input=question)
     if debug:
@@ -140,7 +152,7 @@ def answer_question(
 
     try:
         # Create a completions using the question and context
-        raah = "\n\n"
+        double_return = "\n\n"
         response = openai.ChatCompletion.create(
             messages=[
                 {
@@ -158,7 +170,7 @@ def answer_question(
                 },
                 {
                     "role": "user",
-                    "content": f'Context: {context}\n\n---\n\nQuestion: {question}{f"{raah}Username: {str(username)}" if username else ""}',
+                    "content": f'Context: {context}\n\n---\n\nQuestion: {question}{f"{double_return}Username: {str(username)}" if username else ""}',
                     "name": str(username) if username else "",
                 },
             ],
