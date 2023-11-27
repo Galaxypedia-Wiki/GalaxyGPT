@@ -32,11 +32,11 @@ df = pd.read_csv(os.path.join(__location__, dataset, "embeddings.csv"), index_co
 df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
 
 df["page_titles"] = pd.read_csv(
-    os.path.join(__location__, dataset, "postprocessed.csv"), index_col=0
+    os.path.join(__location__, dataset, "processed.csv"), index_col=0
 )["page_title"]
 
 
-def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
+def create_context(question, df, max_len=2000, model="text-embedding-ada-002", debug=True):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -65,10 +65,11 @@ def create_context(question, df, max_len=2000, model="text-embedding-ada-002"):
         # Else add it to the text that is being returned
         returns.append(row["content"].strip())
         
-    print("bingus:", flush=True)
-    print(returns, flush=True)
-    print('-------------------', flush=True)
-    print(df["distances"].values.tolist(), flush=True)
+    if debug:
+        print("bingus:", flush=True)
+        print(returns, flush=True)
+        print('-------------------', flush=True)
+        print(df["distances"].values.tolist(), flush=True)
 
     # Return the context
     return "\n\n###\n\n".join(returns), embeddingsusage
@@ -99,11 +100,15 @@ def answer_question(
     if df.empty:
         raise Exception("Dataframe is empty")
 
-    # Make sure the question is under 250 tokens
-    enc = tiktoken.get_encoding("cl100k_base")
-    questiontokens = enc.encode(question)
-    if len(questiontokens) > max_tokens:
-        raise Exception("Question is too long (max 250 tokens)")
+    try:
+        # Make sure the question is under 250 tokens
+        enc = tiktoken.get_encoding("cl100k_base")
+        questiontokens = enc.encode(question)
+        if len(questiontokens) > max_tokens:
+            raise Exception("Question is too long (max 250 tokens)")
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        raise e
 
     moderation = openai_client.moderations.create(input=question)
     if debug:
@@ -120,8 +125,7 @@ def answer_question(
     if moderation.results[0].flagged:
         raise Exception("Flagged by OpenAI Moderation System")
 
-    context = create_context(question, df, max_len=max_len, model=size)
-    print(context)
+    context = create_context(question, df, max_len=max_len, model=size, debug=debug)
     embeddingsusage = context[1]
     context = context[0].strip()
 
@@ -158,7 +162,7 @@ def answer_question(
                 {
                     "role": "user",
                     "content": f'Context: {context}\n\n---\n\nQuestion: {question}{f"{raah}Username: {str(username)}" if username else ""}',
-                    "name": str(username) if username else "",
+                    "name": str(username) if username else "None",
                 },
             ],
             temperature=0,
@@ -208,15 +212,14 @@ def answer_question(
         print(traceback.format_exc(), flush=True)
         raise e
 
-
-# print(answer_question(df, question="What are some good strategies to be successful in Galaxy?", debug=True))
-
+# When called directly, enter into an interactive loop
 if __name__ == "__main__":
-    print(
-        answer_question(
-            df,
-            question=sys.argv[1],
-            debug=(True if len(sys.argv) < 3 or sys.argv[2] != "False" else False),
-        ),
-        flush=True,
-    )
+    while True:
+        print("Type exit or quit to exit")
+        question = str(input("\n" + "\x1B[4m" + "User" + "\x1B[0m" + "\n"))
+        if not question or question.lower() == "exit" or question.lower() == "quit":
+            break
+        
+        question = question.strip()
+        response = answer_question(df, question=question, debug=False)
+        print("\n" + "\x1B[4m" + "GalaxyGPT" + "\x1B[0m" + "\n" + response["answer"])
