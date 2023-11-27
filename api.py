@@ -47,7 +47,7 @@ def ask():
         if question is not None:
             print(question + " - " + get_proxy_remote_address())
 
-            username = data["username"]
+            username = data["username"] or None
 
             # If the username is provided, use it to answer the question
             if username is not None:
