@@ -63,13 +63,17 @@ loadDataset()
 ################################################################################
 # Functions
 
-def create_context(question, df, max_len=context_len, model="text-embedding-ada-002"):
+def create_context(question, df, max_len=context_len, model="text-embedding-ada-002", debug=True):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
 
-    # Get the embeddings for the question
-    embeddings = openai.Embedding.create(input=question, engine=model)
+    try:
+        # Get the embeddings for the question
+        embeddings = openai.Embedding.create(input=question, engine=model)
+    except Exception as e:
+        print(traceback.format_exc(), flush=True)
+        raise e
 
     q_embeddings = embeddings["data"][0]["embedding"]
 
@@ -94,6 +98,12 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
 
         # Else add it to the text that is being returned
         returns.append(row["content"].strip())
+        
+    if debug:
+        print("bingus:", flush=True)
+        print(returns, flush=True)
+        print('-------------------', flush=True)
+        print(df["distances"].values.tolist(), flush=True)
 
     # Return the context
     return "\n\n###\n\n".join(returns), embeddingsusage
@@ -144,8 +154,7 @@ def answer_question(
     if moderation["results"][0]["flagged"]:
         raise Exception("Flagged by OpenAI Moderation System")
 
-    context = create_context(question, df, max_len=max_len, model=size)
-    print(context)
+    context = create_context(question, df, max_len=max_len, model=size, debug=debug)
     embeddingsusage = context[1]
     context = context[0].strip()
 
@@ -182,7 +191,7 @@ def answer_question(
                 {
                     "role": "user",
                     "content": f'Context: {context}\n\n---\n\nQuestion: {question}{f"{raah}Username: {str(username)}" if username else ""}',
-                    "name": str(username) if username else "",
+                    "name": str(username) if username else "None",
                 },
             ],
             temperature=0.2,
@@ -317,7 +326,6 @@ class ADCS:
             ADCS.webhook.execute()
 
 adcsdefault = strtobool(os.getenv("ADCS", "False"))
-print("ADCS: " + str(adcsdefault))
 if adcsdefault == True:
         scheduler = ADCS()
         if scheduler.status == "Stopped":
@@ -325,12 +333,13 @@ if adcsdefault == True:
 elif adcsdefault == False:
     print("ADCS is currently disabled")            
 
-if __name__ == "__main__":    
-    print(
-        answer_question(
-            df,
-            question=sys.argv[1],
-            debug=(True if len(sys.argv) < 3 or sys.argv[2] != "False" else False),
-        ),
-        flush=True,
-    )
+if __name__ == "__main__":
+    while True:
+        print("Type exit or quit to exit")
+        question = str(input("\n" + "\x1B[4m" + "User" + "\x1B[0m" + "\n"))
+        if not question or question.lower() == "exit" or question.lower() == "quit":
+            break
+        
+        question = question.strip()
+        response = answer_question(df, question=question, debug=False)
+        print("\n" + "\x1B[4m" + "GalaxyGPT" + "\x1B[0m" + "\n" + response["answer"])
