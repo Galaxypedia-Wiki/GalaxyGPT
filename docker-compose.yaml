@@ -8,6 +8,8 @@ services:
       dockerfile: Dockerfile.api
 #    ports:
 #      - "3636:3636"
+    volumes:
+      - ./dataset-ADCS:/app/dataset-ADCS
     restart: always
     network_mode: host
     env_file: .env
