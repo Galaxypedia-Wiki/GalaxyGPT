@@ -334,8 +334,8 @@ elif adcsdefault == False:
     print("ADCS is currently disabled")            
 
 if __name__ == "__main__":
+    print("Type exit or quit to exit")
     while True:
-        print("Type exit or quit to exit")
         question = str(input("\n" + "\x1B[4m" + "User" + "\x1B[0m" + "\n"))
         if not question or question.lower() == "exit" or question.lower() == "quit":
             break
