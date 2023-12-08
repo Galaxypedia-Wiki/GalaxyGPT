@@ -16,7 +16,6 @@ import schedule
 import time
 import colorama
 from discord_webhook import DiscordWebhook
-from distutils.util import strtobool
 from openai.embeddings_utils import distances_from_embeddings
 from dotenv import load_dotenv
 load_dotenv()
@@ -62,6 +61,20 @@ loadDataset()
 
 ################################################################################
 # Functions
+
+def strtobool(string: str):
+    """
+    Returns a boolean value based on the given string.
+    True values are 'y', 'yes', 't', 'true', 'on', and '1',
+    False values are 'n', 'no', 'f', 'false', 'off', and '0'.  
+    Raises ValueError if 'string' is anything else.
+    """
+    if string.lower() in ['y', 'yes', 't', 'true', 'on', '1']: 
+        return True
+    elif string.lower() in ['n', 'no', 'f', 'false', 'off', '0']: 
+        return False
+    else: 
+        raise ValueError(f"invalid string given: {string}")
 
 def create_context(question, df, max_len=context_len, model="text-embedding-ada-002", debug=True):
     """
