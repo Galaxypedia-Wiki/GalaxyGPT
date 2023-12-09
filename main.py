@@ -137,9 +137,10 @@ def answer_question(
         raise Exception("Question is too long")
 
     moderation = openai_client.moderations.create(input=question)
-    if debug:
-        import json
 
+    import json
+    
+    if debug:
         print(
             "Moderation:\n" + str(moderation.results[0]), flush=True
         )
