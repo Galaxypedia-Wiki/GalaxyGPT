@@ -3,21 +3,23 @@
 ## Initalization
 import hashlib
 import os
-import sys
-import traceback
-import numpy as np
-import openai
-import pandas as pd
-import tiktoken
-import warnings
 import subprocess
 import threading
-import schedule
 import time
+import traceback
+import warnings
+from distutils.util import strtobool
+
 import colorama
+import numpy as np
+import pandas as pd
+import schedule
+import tiktoken
 from discord_webhook import DiscordWebhook
-from openai.embeddings_utils import distances_from_embeddings
 from dotenv import load_dotenv
+from openai import OpenAI
+from scipy.spatial.distance import cosine
+
 load_dotenv()
 
 GalaxyGPTVersion = os.getenv("VERSION")
@@ -27,8 +29,10 @@ if GalaxyGPTVersion == None:
 if not os.getenv("OPENAI_ORG_ID") or not os.getenv("OPENAI_API_KEY"):
     raise Exception("Please set OPENAI_ORG_ID and OPENAI_API_KEY in .env")
 
-openai.organization = os.getenv("OPENAI_ORG_ID")
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    organization=os.getenv("OPENAI_ORG_ID")
+)
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -81,21 +85,14 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
     Create a context for a question by finding the most similar context from the dataframe
     """
 
-    try:
-        # Get the embeddings for the question
-        embeddings = openai.Embedding.create(input=question, engine=model)
-    except Exception as e:
-        print(traceback.format_exc(), flush=True)
-        raise e
+    # Get the embeddings for the question
+    embeddings = openai_client.embeddings.create(input=question, model=model)
 
-    q_embeddings = embeddings["data"][0]["embedding"]
+    q_embeddings = embeddings.data[0].embedding
 
-    embeddingsusage = embeddings["usage"]
-
+    embeddingsusage = embeddings.usage
     # Get the distances from the embeddings
-    df["distances"] = distances_from_embeddings(
-        q_embeddings, df["embeddings"].values, distance_metric="cosine"
-    )
+    df["distances"] = df["embeddings"].apply(lambda x: cosine(q_embeddings, x))
 
     returns = []
     cur_len = 0
@@ -152,19 +149,20 @@ def answer_question(
     if len(questiontokens) > max_tokens:
         raise Exception("Question is too long")
 
-    moderation = openai.Moderation.create(input=question)
-    if debug:
-        import json
+    moderation = openai_client.moderations.create(input=question)
 
+    import json
+    
+    if debug:
         print(
-            "Moderation:\n" + json.dumps(moderation["results"][0], indent=0), flush=True
+            "Moderation:\n" + str(moderation.results[0]), flush=True
         )
         print(
             "-----------------------------------------------------------------------------",
             flush=True,
         )
 
-    if moderation["results"][0]["flagged"]:
+    if moderation.results[0].flagged:
         raise Exception("Flagged by OpenAI Moderation System")
 
     context = create_context(question, df, max_len=max_len, model=size, debug=debug)
@@ -186,7 +184,7 @@ def answer_question(
     try:
         # Create a completions using the question and context
         raah = "\n\n"
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
@@ -221,6 +219,8 @@ def answer_question(
             ),
         )
 
+        response = json.loads(response.model_dump_json())
+
         if debug:
             print(
                 "User: "
@@ -233,10 +233,10 @@ def answer_question(
             )
             
             return {
-                "answer": response["choices"][0]["message"].content.strip(),
+                "answer": response["choices"][0]["message"]["content"].strip(),
                 "context": context,
                 "tokens": response["usage"],
-                "embeddings_usage": embeddingsusage,
+                "embeddings_usage": {"prompt_tokens": embeddingsusage.prompt_tokens, "total_tokens": embeddingsusage.total_tokens},
                 "stop_reason": response["choices"][0]["finish_reason"],
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
@@ -245,7 +245,7 @@ def answer_question(
             }
         else:
             return {
-                "answer": response["choices"][0]["message"].content.strip(),
+                "answer": response["choices"][0]["message"]["content"].strip(),
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
             }
