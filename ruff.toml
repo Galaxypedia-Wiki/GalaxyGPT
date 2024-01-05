@@ -1,0 +1,9 @@
+[lint]
+extend-select = ["Q", "I", "SIM"]
+
+[lint.flake8-quotes]
+inline-quotes = "double"
+
+[format]
+# Prefer single quotes over double quotes.
+quote-style = "double"
