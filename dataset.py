@@ -1,22 +1,25 @@
 # Dataset Preparation for GalaxyGPT
 
-import os
-import pandas as pd
-import tiktoken
-import openai
-import numpy as np
-from dotenv import load_dotenv
-import re
-from tqdm import tqdm
 import argparse
+import os
+import re
 import shutil
 import time
-from halo import Halo
+
 import colorama
+import numpy as np
+import openai
+import pandas as pd
+import tiktoken
+from dotenv import load_dotenv
+from halo import Halo
+from tqdm import tqdm
+
 colorama.init()
-from colorama import Fore, Back, Style
-import subprocess
 import pathlib
+import subprocess
+
+from colorama import Back, Fore, Style
 
 tqdm.pandas()
 load_dotenv()
