@@ -1,11 +1,10 @@
 import flask
-from main import answer_question, df, ADCS, dataset
+from main import answer_question, df, ADCS, dataset, strtobool
 import pandas as pd
 import numpy as np
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import os
-from distutils.util import strtobool
 from waitress import serve
 import traceback
 import logging
