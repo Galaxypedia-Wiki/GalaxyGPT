@@ -7,7 +7,6 @@ import shutil
 import time
 
 import colorama
-import numpy as np
 import openai
 import pandas as pd
 import tiktoken
