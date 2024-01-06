@@ -19,6 +19,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from scipy.spatial.distance import cosine
 
+import re
+
 load_dotenv()
 
 GalaxyGPTVersion = os.getenv("VERSION")
@@ -52,12 +54,22 @@ print("GalaxyGPT v" + GalaxyGPTVersion + " - " + dataset + " - " + str(context_l
 
 def loadDataset():
     print("Loading dataset...")
-    global df
+    global df, embeddings_titles
     
     df = pd.read_csv(os.path.join(__location__, dataset, "embeddings.csv"), index_col=0)
     df["embeddings"] = df["embeddings"].apply(eval).apply(np.array)
 
     df["page_titles"] = pd.read_csv(os.path.join(__location__, dataset, "processed.csv"), index_col=0)["page_title"]
+
+    embeddings_titles = []
+    for content in df["content"]:
+        # Get the page title from the content
+        match = re.match(r"([a-z]|\s|-|[0-9])+(?=\.\s([^a-z]|[^0-9]))", content)
+        if match is not None:
+            embeddings_titles.append(match.group(0))
+        else:
+            embeddings_titles.append(None)
+
     print("Dataset loaded!")
 
 loadDataset()
@@ -95,6 +107,7 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
 
     returns = []
     cur_len = 0
+    used_page_titles = []
 
     # Sort by distance and add the text to the context until the context is too long
     for i, row in df.sort_values("distances", ascending=True).iterrows():
@@ -107,7 +120,12 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
 
         # Else add it to the text that is being returned
         returns.append(row["content"].strip())
-        
+
+        # keep track of what rows of the csv have been used for the context, get their page titles
+        # note: row.name returns the index of the row
+        if embeddings_titles[int(row.name)] is not None:
+            used_page_titles.append(embeddings_titles[int(row.name)])
+
     if debug:
         print("bingus:", flush=True)
         print(returns, flush=True)
@@ -115,7 +133,7 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
         print(df["distances"].values.tolist(), flush=True)
 
     # Return the context
-    return "\n\n###\n\n".join(returns), embeddingsusage
+    return "\n\n###\n\n".join(returns), embeddingsusage, used_page_titles
 
 
 def answer_question(
@@ -165,8 +183,11 @@ def answer_question(
         raise Exception("Flagged by OpenAI Moderation System")
 
     context = create_context(question, df, max_len=max_len, model=size, debug=debug)
+    page_titles = context[2]
     embeddingsusage = context[1]
     context = context[0].strip()
+
+    print(f"returned titles: {page_titles}")
 
     if context == "":
         warnings.warn("Context is empty")
@@ -240,7 +261,8 @@ def answer_question(
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
                 "model": model,
-                "extra": extrainfo.strip()
+                "extra": extrainfo.strip(),
+                "page_titles": page_titles
             }
         else:
             return {
