@@ -3,6 +3,7 @@
 ## Initalization
 import hashlib
 import os
+import re
 import subprocess
 import threading
 import time
@@ -18,8 +19,6 @@ from discord_webhook import DiscordWebhook
 from dotenv import load_dotenv
 from openai import OpenAI
 from scipy.spatial.distance import cosine
-
-import re
 
 load_dotenv()
 
