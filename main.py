@@ -133,7 +133,6 @@ def answer_question(
     Answer a question based on the most similar context from the dataframe texts
     """
     
-    extrainfo = ""
     # Make sure the question is not empty
     if question == "":
         raise Exception("Question is empty")
@@ -239,8 +238,7 @@ def answer_question(
                 "stop_reason": response["choices"][0]["finish_reason"],
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
-                "model": model,
-                "extra": extrainfo.strip()
+                "model": model
             }
         else:
             return {
