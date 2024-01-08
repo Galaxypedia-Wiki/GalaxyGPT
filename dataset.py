@@ -2,28 +2,26 @@
 
 import argparse
 import os
+import pathlib
 import re
 import shutil
+import subprocess
 import time
 
 import colorama
-import openai
 import pandas as pd
 import tiktoken
+from colorama import Fore
 from dotenv import load_dotenv
 from halo import Halo
+from openai import OpenAI
 from tqdm import tqdm
 
 colorama.init()
-import pathlib
-import subprocess
-
-from colorama import Back, Fore, Style
-
 tqdm.pandas()
 load_dotenv()
 
-olddatasets = [f for f in os.listdir('.') if re.match(r'^dataset-v\d$', f, flags=re.MULTILINE | re.IGNORECASE)]
+olddatasets = [f for f in os.listdir(".") if re.match(r"^dataset-v\d$", f, flags=re.MULTILINE | re.IGNORECASE)]
  
 # Arguments
 parser = argparse.ArgumentParser("GalaxyGPT Dataset Assistant", description="Generate a dataset for use with GalaxyGPT")
@@ -35,7 +33,7 @@ parser.add_argument("--org-id", help="The OpenAI organization ID to use (default
 parser.add_argument("--dump-database", help="Generate a new database dump for use with this script", action="store_true", default=False)
 parser.add_argument("--max-len", help="The maximum token length of a chunk (HIGHLY ADVISED TO SET THIS AS THE (MAXIMUM CONTEXT LIMIT / 2))", type=int, required=True)
 parser.add_argument("--compress-old-datasets", help="Compress old datasets into their own respective tar.gz files so long as they follow the dataset-vX naming scheme", action="store_true", default=False)
-parser.add_argument("dataset", help="The path to the datset to use (not required if using --dump-database)", type=pathlib.Path, default="galaxypedia.csv", nargs='?')
+parser.add_argument("dataset", help="The path to the datset to use (not required if using --dump-database)", type=pathlib.Path, default="galaxypedia.csv", nargs="?")
 args = parser.parse_args()
 
 # Get list of old datasets and compress them
@@ -55,19 +53,21 @@ if args.compress_old_datasets and len(olddatasets) != 0:
             shutil.rmtree(f)
             spin.succeed(f"Deleted {f}!")
 
-if args.api_key == None:
+if args.api_key is None:
     raise Exception("No OpenAI API key specified!")
-if args.org_id == None:
+if args.org_id is None:
     raise Exception("No OpenAI organization ID specified!")
-openai.organization = args.org_id
-openai.api_key = args.api_key
+openai_client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    organization=os.getenv("OPENAI_ORG_ID")
+)
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 
 outdir = args.outdir
 
-if outdir == "" or outdir == None:
+if outdir == "" or outdir is None:
     raise Exception("No output directory specified!")
 print(Fore.GREEN + "Saving results to " + outdir + "!")
 
@@ -76,15 +76,15 @@ if not os.path.exists(outdir):
     
 # Check if there are any files in the output directory
 if os.listdir(outdir):
-    if args.cleandir == None:
-        os.system('cls' if os.name == 'nt' else 'clear')
+    if args.cleandir is None:
+        os.system("cls" if os.name == "nt" else "clear")
         thing = input(f"{Fore.YELLOW}{outdir} contains existing files!{Fore.RESET}\nWould you like to delete the contents of {outdir}? (Y/n): ")
             
         if str(thing).strip() == "y" or str(thing).strip() == "":
             shutil.rmtree(outdir)
             os.makedirs(outdir)
             print("Deleted the contents of " + outdir + "!")
-            os.system('cls' if os.name == 'nt' else 'clear')
+            os.system("cls" if os.name == "nt" else "clear")
     elif args.cleandir:
         shutil.rmtree(outdir)
         os.makedirs(outdir)
@@ -118,7 +118,7 @@ if args.generate_dataset:
         subprocess.run(["/bin/bash", __location__ + "/dump-database.sh"], cwd=__location__, capture_output=True, check=True)
     except Exception as e:
         raise Exception("Failed to generate dataset! " + str(e))
-    print('Generated dataset!')
+    print("Generated dataset!")
     
     datasetpath = os.path.join(__location__, "galaxypedia.csv")
     
@@ -133,7 +133,7 @@ def remove_newlines(serie):
     serie = serie.str.replace("  ", " ")
     return serie
 
-spinner = Halo(text=f'Loading {str(datasetname)}', spinner='dots')
+spinner = Halo(text=f"Loading {str(datasetname)}", spinner="dots")
 spinner.start()
 df = pd.read_csv(
     datasetpath,
@@ -141,11 +141,11 @@ df = pd.read_csv(
     header=0,
     names=["page_title", "content"],
 )
-spinner.succeed(f'Loaded {str(datasetname)}!')
+spinner.succeed(f"Loaded {str(datasetname)}!")
 
 
 # Sanitize the dataset's contents to make it more readable for the model
-spinner = Halo(text=f'Sanitizing dataset', spinner='dots')
+spinner = Halo(text="Sanitizing dataset", spinner="dots")
 # Remove newlines
 contentprocessed = remove_newlines(df.content)
 # Remove Gallery tags
@@ -180,27 +180,27 @@ divregex = re.compile(r"<div.*?>|<\/div>\\?\n?", re.S)
 contentprocessed = contentprocessed.str.replace(divregex, "", regex=True)
 spinner.succeed()
 
-spinner = Halo(text=f'Saving sanitized dataset', spinner='dots')
+spinner = Halo(text="Saving sanitized dataset", spinner="dots")
 
 # Remove rows with empty content
 df["content"] = contentprocessed.str.strip()
-rows_to_drop = df[df["content"]==''].index
+rows_to_drop = df[df["content"]==""].index
 df.drop(rows_to_drop, inplace=True)
 # Assemble the final page content
 df["content"] = df.page_title.str.lower().str.replace("_", " ").str.strip() + ". " + df.content.str.strip()
 # Save
 df.to_csv(os.path.join(__location__, outdir, "processed.csv"))
-spinner.succeed(f'Saved sanitized dataset!')
+spinner.succeed("Saved sanitized dataset!")
 
 ################################################################################
 
 # Load the cl100k_base tokenizer which is designed to work with the ada-002 model
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
-spinner = Halo(text=f'Loading sanitized dataset', spinner='dots')
+spinner = Halo(text="Loading sanitized dataset", spinner="dots")
 df = pd.read_csv(os.path.join(__location__, outdir, "processed.csv"), index_col=0)
 df.columns = ["page_title", "content"]
-spinner.succeed(f'Loaded sanitized dataset!')
+spinner.succeed("Loaded sanitized dataset!")
 
 # Tokenize the text and save the number of tokens to a new column
 tqdm.pandas(desc="Tokenizing", leave=False)
@@ -272,11 +272,11 @@ tqdm.pandas(desc="Tokenizing", leave=False)
 df["n_tokens"] = df.content.progress_apply(lambda x: len(tokenizer.encode(x)))
 print(Fore.GREEN + "✔ " + Fore.RESET + "Tokenized!")
 
-spinner = Halo(text=f'Saving tokenized dataset', spinner='dots')
+spinner = Halo(text="Saving tokenized dataset", spinner="dots")
 df.to_csv(os.path.join(__location__, outdir, "tokenized.csv"))
-spinner.succeed(f'Saved tokenized dataset!')
+spinner.succeed("Saved tokenized dataset!")
 
-if args.no_embeddings == False:
+if args.no_embeddings is False:
     cost = 0
     
     baller = tqdm(total=df.shape[0], desc="Embedding", leave=False)
@@ -285,19 +285,20 @@ if args.no_embeddings == False:
         cost += (len(tokenizer.encode(x)) / 1000) * 0.0001
         baller.set_postfix_str(str(round(cost, 8)))
         baller.update(1)
-        return openai.Embedding.create(input=x, engine="text-embedding-ada-002")["data"][0]["embedding"]
+
+        return openai_client.embeddings.create(input=x, model="text-embedding-ada-002").data[0].embedding
     
     df["embeddings"] = df.content.apply(idk)
     baller.close()
     print(Fore.GREEN + "✔ " + Fore.RESET + "Embedded!")
 
-    spinner = Halo(text=f'Saving embedded dataset', spinner='dots')
+    spinner = Halo(text="Saving embedded dataset", spinner="dots")
     df.to_csv(os.path.join(__location__, outdir, "embeddings.csv"))
-    spinner.succeed(f'Saved embedded dataset!')
+    spinner.succeed("Saved embedded dataset!")
 
-spinner = Halo(text=f'Copying initial dataset to output directory', spinner='dots')
+spinner = Halo(text="Copying initial dataset to output directory", spinner="dots")
 shutil.copyfile(datasetpath, os.path.join(__location__, outdir, datasetname))
-spinner.succeed(f'Copied initial dataset to output directory!')
+spinner.succeed("Copied initial dataset to output directory!")
 
 with open(os.path.join(__location__, outdir, "METADATA.txt"), "w") as file:
     file.write(f"Dataset: {datasetname}\nTimestamp: {time.ctime(time.time())}\nMax_len: {max_tokens}")
