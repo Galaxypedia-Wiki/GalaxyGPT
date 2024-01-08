@@ -13,7 +13,7 @@ sudo mv -f /tmp/galaxypedia.csv ./galaxypedia.csv.temp
 
 # Change the owner of the file to ubuntu
 echo "Changing the owner of the file to ubuntu..."
-sudo chown ubuntu:ubuntu galaxypedia.csv.temp
+sudo chown $(whoami):$(whoami) galaxypedia.csv.temp
 
 # Add the header to the csv file
 echo "Adding the header to the csv file..."
