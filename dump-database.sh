@@ -17,7 +17,7 @@ sudo chown $(whoami):$(whoami) galaxypedia.csv.temp
 
 # Add the header to the csv file
 echo "Adding the header to the csv file..."
-(echo "page_title,content"; cat galaxypedia.csv.temp) > galaxypedia.csv
+(echo "page_title,content"; cat galaxypedia.csv.temp) > galaxypedia-$(date '+%Y-%m-%d').csv
 
 # Remove the temporary file
 echo "Removing the temporary file..."
