@@ -35,7 +35,7 @@ parser.add_argument("--org-id", help="The OpenAI organization ID to use (default
 parser.add_argument("--dump-database", help="Generate a new database dump for use with this script", action="store_true", default=False)
 parser.add_argument("--max-len", help="The maximum token length of a chunk (HIGHLY ADVISED TO SET THIS AS THE (MAXIMUM CONTEXT LIMIT / 2))", type=int, required=True)
 parser.add_argument("--compress-old-datasets", help="Compress old datasets into their own respective tar.gz files so long as they follow the dataset-vX naming scheme", action="store_true", default=False)
-parser.add_argument("dataset", help="The path to the datset to use (not required if using --generate-dataset)", type=pathlib.Path, default="galaxypedia.csv", nargs='?')
+parser.add_argument("dataset", help="The path to the datset to use (not required if using --dump-database)", type=pathlib.Path, default="galaxypedia.csv", nargs='?')
 args = parser.parse_args()
 
 # Get list of old datasets and compress them
@@ -115,7 +115,7 @@ if args.generate_dataset:
 
     print("Generating dataset...")
     try:
-        subprocess.run(["/bin/bash", __location__ + "/generate-dataset.sh"], cwd=__location__, capture_output=True, check=True)
+        subprocess.run(["/bin/bash", __location__ + "/dump-database.sh"], cwd=__location__, capture_output=True, check=True)
     except Exception as e:
         raise Exception("Failed to generate dataset! " + str(e))
     print('Generated dataset!')
