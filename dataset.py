@@ -249,7 +249,10 @@ def split_into_many(text, max_tokens=max_tokens):
 
 
 shortened = []
-# keep track of the rows that were split into chunks, and how many chunks they were split into
+
+# in embeddings_pages_by_row, each index corresponds to a page title.
+# for each iteration, append a number to embeddings_pages_by_row
+# that is the amount of pages in that index
 embeddings_pages_by_row = []
 
 # Loop through the dataframe
@@ -258,19 +261,19 @@ itrows = tqdm(df.iterrows(), total=df.shape[0], desc="Splitting dataset into chu
 for row in itrows:
     # If the text is None, go to the next row
     if row[1]["content"] is None:
-        embeddings_pages_by_row.append(0)
+        embeddings_pages_by_row.append(0) # there is 0 pages for this pagetitle index
         continue
 
     # If the number of tokens is greater than the max number of tokens, split the text into chunks
     if row[1]["n_tokens"] > max_tokens:
         chunks = split_into_many(row[1]["content"])
         shortened += chunks
-        embeddings_pages_by_row.append(chunks.__len__())
+        embeddings_pages_by_row.append(chunks.__len__())  # there is chunks.len pages for this pagetitle index
 
     # Otherwise, add the text to the list of shortened texts
     else:
         shortened.append(row[1]["content"])
-        embeddings_pages_by_row.append(1)
+        embeddings_pages_by_row.append(1) # there is 1 page for this pagetitle index
 
 print(Fore.GREEN + "✔ " + Fore.RESET + "Dataset split into chunks!")
 
@@ -280,6 +283,7 @@ df = pd.DataFrame(shortened, columns=["content"])
 
 tqdm.pandas(desc="Tokenizing", leave=False)
 
+# make a list of the number of embeddings rows for each page
 embedding_page_titles = []
 for i, repeats in enumerate(embeddings_pages_by_row):
     for j in list(range(repeats)):
