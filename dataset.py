@@ -92,7 +92,7 @@ if os.listdir(outdir):
         
         
 # Load the dataset as a dataframe
-if not args.generate_dataset:
+if not args.dump_database:
     if args.dataset and not str(args.dataset).endswith(".csv"):
         raise Exception("Dataset must be a csv file!")
     if args.dataset and not os.path.exists(args.dataset):
@@ -108,7 +108,7 @@ datasetname = os.path.basename(args.dataset)
 if not os.path.isabs(datasetpath):
     datasetpath = os.path.join(__location__, args.dataset)
 
-if args.generate_dataset:
+if args.dump_database:
     if os.path.exists(__location__ + "/galaxypedia.csv"):
         print("Renaming galaxypedia.csv to galaxypedia.csv.old")
         os.rename(os.path.join(__location__, "galaxypedia.csv"), os.path.join(__location__, "galaxypedia.csv.old"))
@@ -141,6 +141,10 @@ df = pd.read_csv(
     header=0,
     names=["page_title", "content"],
 )
+
+# grab the page titles for later
+page_titles = df.page_title.str.lower().str.replace("_", " ").str.strip()
+
 spinner.succeed(f"Loaded {str(datasetname)}!")
 
 
@@ -245,6 +249,8 @@ def split_into_many(text, max_tokens=max_tokens):
 
 
 shortened = []
+# keep track of the rows that were split into chunks, and how many chunks they were split into
+embeddings_pages_by_row = []
 
 # Loop through the dataframe
 itrows = tqdm(df.iterrows(), total=df.shape[0], desc="Splitting dataset into chunks", leave=False)
@@ -252,15 +258,19 @@ itrows = tqdm(df.iterrows(), total=df.shape[0], desc="Splitting dataset into chu
 for row in itrows:
     # If the text is None, go to the next row
     if row[1]["content"] is None:
+        embeddings_pages_by_row.append(0)
         continue
 
     # If the number of tokens is greater than the max number of tokens, split the text into chunks
     if row[1]["n_tokens"] > max_tokens:
-        shortened += split_into_many(row[1]["content"])
+        chunks = split_into_many(row[1]["content"])
+        shortened += chunks
+        embeddings_pages_by_row.append(chunks.__len__())
 
     # Otherwise, add the text to the list of shortened texts
     else:
         shortened.append(row[1]["content"])
+        embeddings_pages_by_row.append(1)
 
 print(Fore.GREEN + "✔ " + Fore.RESET + "Dataset split into chunks!")
 
@@ -269,6 +279,14 @@ print(Fore.GREEN + "✔ " + Fore.RESET + "Dataset split into chunks!")
 df = pd.DataFrame(shortened, columns=["content"])
 
 tqdm.pandas(desc="Tokenizing", leave=False)
+
+embedding_page_titles = []
+for i, repeats in enumerate(embeddings_pages_by_row):
+    for j in list(range(repeats)):
+        embedding_page_titles.append(page_titles[i + 1]) # +1 because page_titles[0] is the column name, not the first entry
+
+df["page_title"] = embedding_page_titles
+
 df["n_tokens"] = df.content.progress_apply(lambda x: len(tokenizer.encode(x)))
 print(Fore.GREEN + "✔ " + Fore.RESET + "Tokenized!")
 

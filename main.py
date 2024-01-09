@@ -95,6 +95,7 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
 
     returns = []
     cur_len = 0
+    context_page_titles = []
 
     # Sort by distance and add the text to the context until the context is too long
     for i, row in df.sort_values("distances", ascending=True).iterrows():
@@ -107,6 +108,9 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
 
         # Else add it to the text that is being returned
         returns.append(row["content"].strip())
+
+        # keep track of the page titles (note: df["page_title"] comes from the embeddings.csv file, not the processed.csv file)
+        context_page_titles.append(df["page_title"][int(row.name)])
         
     if debug:
         print("bingus:", flush=True)
@@ -115,7 +119,7 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
         print(df["distances"].values.tolist(), flush=True)
 
     # Return the context
-    return "\n\n###\n\n".join(returns), embeddingsusage
+    return "\n\n###\n\n".join(returns), embeddingsusage, context_page_titles
 
 
 def answer_question(
@@ -165,6 +169,7 @@ def answer_question(
 
     context = create_context(question, df, max_len=max_len, model=size, debug=debug)
     embeddingsusage = context[1]
+    page_titles = context[2]
     context = context[0].strip()
 
     if context == "":
@@ -238,7 +243,8 @@ def answer_question(
                 "stop_reason": response["choices"][0]["finish_reason"],
                 "dataset": dataset,
                 "version": GalaxyGPTVersion,
-                "model": model
+                "model": model,
+                "page_titles": page_titles,
             }
         else:
             return {
