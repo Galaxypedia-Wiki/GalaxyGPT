@@ -92,7 +92,7 @@ if os.listdir(outdir):
         
         
 # Load the dataset as a dataframe
-if not args.generate_dataset:
+if not args.dump_database:
     if args.dataset and not str(args.dataset).endswith(".csv"):
         raise Exception("Dataset must be a csv file!")
     if args.dataset and not os.path.exists(args.dataset):
@@ -108,7 +108,7 @@ datasetname = os.path.basename(args.dataset)
 if not os.path.isabs(datasetpath):
     datasetpath = os.path.join(__location__, args.dataset)
 
-if args.generate_dataset:
+if args.dump_database:
     if os.path.exists(__location__ + "/galaxypedia.csv"):
         print("Renaming galaxypedia.csv to galaxypedia.csv.old")
         os.rename(os.path.join(__location__, "galaxypedia.csv"), os.path.join(__location__, "galaxypedia.csv.old"))
