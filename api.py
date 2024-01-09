@@ -4,10 +4,9 @@ import traceback
 
 import flask
 from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from waitress import serve
 
-from main import ADCS, answer_question, dataset, df, strtobool
+from main import ADCS, answer_question, df, strtobool
 
 
 # Load Flask
@@ -15,7 +14,7 @@ def get_proxy_remote_address():
     """
     :return: the ip address for the current request (or 127.0.0.1 if none found)
     """
-    if flask.request.headers.get("X-Forwarded-For") != None:
+    if flask.request.headers.get("X-Forwarded-For") is not None:
         return str(flask.request.headers.get("X-Forwarded-For"))
     return flask.request.remote_addr or "127.0.0.1"
 
@@ -125,7 +124,7 @@ if __name__ == "__main__":
     if use_waitress is not bool:
         use_waitress = strtobool(use_waitress)
 
-    if debug == True and not use_waitress:
+    if debug is True and not use_waitress:
         app.run(host="0.0.0.0", port=3636, debug=True)
         print("Started with flask", flush=True)
     else:
