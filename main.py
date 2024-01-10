@@ -79,7 +79,7 @@ def strtobool(string: str):
     else: 
         raise ValueError(f"invalid string given: {string}")
 
-def create_context(question, df, max_len=context_len, model="text-embedding-ada-002", debug=True):
+def create_context(question: str, df: pd.DataFrame, max_len: int=context_len, model: str="text-embedding-ada-002", debug: bool=True):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -93,9 +93,9 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
     # Get the distances from the embeddings
     df["distances"] = df["embeddings"].apply(lambda x: cosine(q_embeddings, x))
 
-    returns = []
-    cur_len = 0
-    context_page_titles = []
+    returns: list = []
+    cur_len: int = 0
+    context_page_titles: list = []
 
     # Sort by distance and add the text to the context until the context is too long
     for i, row in df.sort_values("distances", ascending=True).iterrows():
@@ -124,12 +124,12 @@ def create_context(question, df, max_len=context_len, model="text-embedding-ada-
 
 def answer_question(
         df: pd.DataFrame,
-        model=gpt_model,
-        question="Hello!",
-        max_len=context_len,
-        size="text-embedding-ada-002",
-        debug=True,
-        max_tokens=250,
+        model: str=gpt_model,
+        question: str="Hello!",
+        max_len: int=context_len,
+        size: str="text-embedding-ada-002",
+        debug: bool=True,
+        max_tokens: int=250,
         stop_sequence=None,
         username: str | None = None,
 ):
