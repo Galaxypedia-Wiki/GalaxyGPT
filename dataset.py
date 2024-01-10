@@ -264,7 +264,8 @@ for row in itrows:
         embeddings_pages_by_row.append(0) # there is 0 pages for this pagetitle index
         continue
 
-    # If the number of tokens is greater than the max number of tokens, split the text into chunks
+    # If the number of tokens is greater than the max number of tokens, split the text into chunks and
+    # add them to the list of shortened texts. Append the number of chunks to the embeddings pages by row
     if row[1]["n_tokens"] > max_tokens:
         chunks = split_into_many(row[1]["content"])
         shortened += chunks
