@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import time
+from glob import glob
 
 import colorama
 import pandas as pd
@@ -33,7 +34,7 @@ parser.add_argument("--org-id", help="The OpenAI organization ID to use (default
 parser.add_argument("--dump-database", help="Generate a new database dump for use with this script", action="store_true", default=False)
 parser.add_argument("--max-len", help="The maximum token length of a chunk (HIGHLY ADVISED TO SET THIS AS THE (MAXIMUM CONTEXT LIMIT / 2))", type=int, required=True)
 parser.add_argument("--compress-old-datasets", help="Compress old datasets into their own respective tar.gz files so long as they follow the dataset-vX naming scheme", action="store_true", default=False)
-parser.add_argument("dataset", help="The path to the datset to use (not required if using --dump-database)", type=pathlib.Path, default="galaxypedia.csv", nargs="?")
+parser.add_argument("--dataset", help="The path to the datset to use. Defaults to galaxypedia-*.csv, where * is the highest number found in the directory, or to galaxypedia.csv", type=pathlib.Path, default=None, nargs="?")
 args = parser.parse_args()
 
 # Get list of old datasets and compress them
@@ -93,25 +94,32 @@ if os.listdir(outdir):
         
 # Load the dataset as a dataframe
 if not args.dump_database:
-    if args.dataset and not str(args.dataset).endswith(".csv"):
-        raise Exception("Dataset must be a csv file!")
-    if args.dataset and not os.path.exists(args.dataset):
-        raise Exception("Dataset does not exist!")
-
-
-datasetpath = args.dataset
+    if args.dataset is None:
+        # get the first file that matches the glob, prioritizing the file with the largest number by sorting the list numerically then reversing the list
+        pathlist = sorted(glob(__location__ + "/galaxypedia*.csv"), reverse=True)
+        if pathlist == []:
+            raise Exception("Dataset starting with \'galaxypedia\' and ending with \'.csv\' could not be found!")
+        datasetpath = pathlist[0]
+    else:
+        if not str(args.dataset).endswith(".csv"):
+            raise Exception("Dataset must be a csv file!")
+        if not os.path.exists(args.dataset):
+            raise Exception("Dataset does not exist!")
+        datasetpath = args.dataset
+            
 
 # If args.dataset is an absolute path, get the filename
-datasetname = os.path.basename(args.dataset)
+datasetname = os.path.basename(datasetpath)
 
 # if args.dataset is a relative path, get the absolute path
 if not os.path.isabs(datasetpath):
-    datasetpath = os.path.join(__location__, args.dataset)
+    datasetpath = os.path.join(__location__, datasetpath)
 
 if args.dump_database:
-    if os.path.exists(__location__ + "/galaxypedia.csv"):
+    # Rename the old galaxypedia.csv to galaxypedia.csv.old by searching for anything matching galaxypedia*.csv
+    for file in glob(__location__ + "/galaxypedia*.csv"):
         print("Renaming galaxypedia.csv to galaxypedia.csv.old")
-        os.rename(os.path.join(__location__, "galaxypedia.csv"), os.path.join(__location__, "galaxypedia.csv.old"))
+        os.rename(os.path.join(file), os.path.join(file + ".old"))
 
     print("Generating dataset...")
     try:
