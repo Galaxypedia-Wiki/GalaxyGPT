@@ -5,5 +5,5 @@ processed/
 .idea/
 *.tar.gz
 *.old
-galaxypedia.csv
+galaxypedia*.csv
 dataset-*/
