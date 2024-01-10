@@ -286,7 +286,7 @@ class ADCS:
         
         # Generate the dataset
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Generating a new dataset...")
-        subprocess.run(["./generate-dataset.sh", os.getenv("DATABASE_PASSWORD")], cwd=os.path.join(__location__))
+        subprocess.run(["./dump-database.sh", os.getenv("DATABASE_PASSWORD")], cwd=os.path.join(__location__))
         
         print(colorama.Fore.CYAN + "ADCS:" + colorama.Fore.RESET + " Preparing the dataset...")
         # Prepare the dataset
