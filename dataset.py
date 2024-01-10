@@ -66,7 +66,7 @@ openai_client = OpenAI(
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 
-outdir = args.outdir
+outdir: str = args.outdir
 
 if outdir == "" or outdir is None:
     raise Exception("No output directory specified!")
@@ -79,9 +79,9 @@ if not os.path.exists(outdir):
 if os.listdir(outdir):
     if args.cleandir is None:
         os.system("cls" if os.name == "nt" else "clear")
-        thing = input(f"{Fore.YELLOW}{outdir} contains existing files!{Fore.RESET}\nWould you like to delete the contents of {outdir}? (Y/n): ")
+        clear_existing_files = input(f"{Fore.YELLOW}{outdir} contains existing files!{Fore.RESET}\nWould you like to delete the contents of {outdir}? (Y/n): ")
             
-        if str(thing).strip() == "y" or str(thing).strip() == "":
+        if str(clear_existing_files).strip() == "y" or str(clear_existing_files).strip() == "":
             shutil.rmtree(outdir)
             os.makedirs(outdir)
             print("Deleted the contents of " + outdir + "!")
@@ -99,13 +99,13 @@ if not args.dump_database:
         pathlist = sorted(glob(__location__ + "/galaxypedia*.csv"), reverse=True)
         if pathlist == []:
             raise Exception("Dataset starting with \'galaxypedia\' and ending with \'.csv\' could not be found!")
-        datasetpath = pathlist[0]
+        datasetpath: str = pathlist[0]
     else:
         if not str(args.dataset).endswith(".csv"):
             raise Exception("Dataset must be a csv file!")
         if not os.path.exists(args.dataset):
             raise Exception("Dataset does not exist!")
-        datasetpath = args.dataset
+        datasetpath: str = args.dataset
             
 
 # If args.dataset is an absolute path, get the filename
@@ -220,12 +220,12 @@ df["n_tokens"] = df.content.progress_apply(lambda x: len(tokenizer.encode(x)))
 print(Fore.GREEN + "✔ " + Fore.RESET + "Tokenized!")
 
 # Max tokens per chunk
-max_tokens = args.max_len
+max_tokens: int = args.max_len
 
 # Function to split the text into chunks of a maximum number of tokens
 def split_into_many(text, max_tokens=max_tokens):
     # Split the text into sentences
-    sentences = text.split(". ")
+    sentences: str = text.split(". ")
 
     # Get the number of tokens for each sentence
     n_tokens = [len(tokenizer.encode(" " + sentence)) for sentence in sentences]
