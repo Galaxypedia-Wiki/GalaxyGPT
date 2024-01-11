@@ -37,15 +37,15 @@ adcsservice = ADCS()
 @app.route("/api/v1/ask", methods=["POST"])
 @limiter.limit("10/30 seconds")
 def ask():
-    data = flask.request.get_json()
+    data: dict = flask.request.get_json()
 
     if data is not None:
-        question = data["prompt"]
+        question: str = data["prompt"]
 
         if question is not None:
             print(question + " - " + get_proxy_remote_address())
 
-            username = data["username"] or None
+            username: str = data["username"] or None
 
             # If the username is provided, use it to answer the question
             if username is not None:
