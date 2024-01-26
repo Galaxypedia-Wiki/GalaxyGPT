@@ -169,7 +169,7 @@ def answer_question(
 
     context = create_context(question, df, max_len=max_len, model=size, debug=debug)
     embeddingsusage = context[1]
-    page_titles = context[2]
+    page_titles: list[str] = context[2]
     context = context[0].strip()
 
     if context == "":
