@@ -172,8 +172,6 @@ def answer_question(
     page_titles = context[2]
     context = context[0].strip()
 
-    print(page_titles)
-
     if context == "":
         warnings.warn("Context is empty")
         
