@@ -118,7 +118,7 @@ if not os.path.isabs(datasetpath):
 if args.dump_database:
     # Rename the old galaxypedia.csv to galaxypedia.csv.old by searching for anything matching galaxypedia*.csv
     for file in glob(__location__ + "/galaxypedia*.csv"):
-        print("Renaming galaxypedia.csv to galaxypedia.csv.old")
+        print("Renaming galaxypedia*.csv to galaxypedia*.csv.old")
         os.rename(os.path.join(file), os.path.join(file + ".old"))
 
     print("Generating dataset...")
@@ -127,8 +127,9 @@ if args.dump_database:
     except Exception as e:
         raise Exception("Failed to generate dataset! " + str(e))
     print("Generated dataset!")
-    
-    datasetpath = os.path.join(__location__, "galaxypedia.csv")
+
+    pathlist = sorted(glob(__location__ + "/galaxypedia*.csv"), reverse=True)
+    datasetpath: str = pathlist[0]
     
 ###############################################################################
 ###############################################################################
