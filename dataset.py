@@ -206,7 +206,7 @@ spinner.succeed("Saved sanitized dataset!")
 
 ################################################################################
 
-# Load the cl100k_base tokenizer which is designed to work with the ada-002 model, but works fine with the text-embedding-3-small model
+# Load the cl100k_base tokenizer which is designed to work with the text-embedding-ada-002 and text-embedding-3-small models
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
 spinner = Halo(text="Loading sanitized dataset", spinner="dots")
