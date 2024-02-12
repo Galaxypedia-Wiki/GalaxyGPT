@@ -207,7 +207,7 @@ spinner.succeed("Saved sanitized dataset!")
 
 ################################################################################
 
-# Load the cl100k_base tokenizer which is designed to work with the ada-002 model
+# Load the cl100k_base tokenizer which is designed to work with the text-embedding-ada-002 and text-embedding-3-small models
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
 spinner = Halo(text="Loading sanitized dataset", spinner="dots")
@@ -318,7 +318,7 @@ if args.no_embeddings is False:
         baller.set_postfix_str(str(round(cost, 8)))
         baller.update(1)
 
-        return openai_client.embeddings.create(input=x, model="text-embedding-ada-002").data[0].embedding
+        return openai_client.embeddings.create(input=x, model="text-embedding-3-small").data[0].embedding
     
     df["embeddings"] = df.content.apply(idk)
     baller.close()

@@ -79,7 +79,7 @@ def strtobool(string: str):
     else: 
         raise ValueError(f"invalid string given: {string}")
 
-def create_context(question: str, df: pd.DataFrame, max_len: int=context_len, model: str="text-embedding-ada-002", debug: bool=True):
+def create_context(question: str, df: pd.DataFrame, max_len: int=context_len, model: str="text-embedding-3-small", debug: bool=True):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -127,7 +127,7 @@ def answer_question(
         model: str=gpt_model,
         question: str="Hello!",
         max_len: int=context_len,
-        size: str="text-embedding-ada-002",
+        size: str="text-embedding-3-small",
         debug: bool=True,
         max_tokens: int=250,
         stop_sequence=None,
