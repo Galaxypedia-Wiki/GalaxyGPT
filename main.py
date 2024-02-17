@@ -43,7 +43,10 @@ if context_len is None:
     raise Exception("Please set MAX_CONTEXT_LEN in .env")
 gpt_model = str(os.getenv("MODEL")) # Model to use
 if gpt_model is None:
-    raise Exception("Please set MODEL in .env")
+    gpt_model = "gpt-3.5-turbo-0125"
+embeddings_model = str(os.getenv("EMBEDDING_MODEL")) # Embeddings Model to use
+if embeddings_model is None:
+    embeddings_model = "text-embedding-3-small"
 
 print("GalaxyGPT v" + GalaxyGPTVersion + " - " + dataset + " - " + str(context_len) + " max len")
 
@@ -79,7 +82,7 @@ def strtobool(string: str):
     else: 
         raise ValueError(f"invalid string given: {string}")
 
-def create_context(question: str, df: pd.DataFrame, max_len: int=context_len, model: str="text-embedding-3-small", debug: bool=True):
+def create_context(question: str, df: pd.DataFrame, max_len: int=context_len, model: str=gpt_model, debug: bool=True):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
@@ -127,7 +130,7 @@ def answer_question(
         model: str=gpt_model,
         question: str="Hello!",
         max_len: int=context_len,
-        embeddings_model: str="text-embedding-3-small",
+        embeddings_model: str=embeddings_model,
         debug: bool=True,
         max_tokens: int=250,
         stop_sequence=None,

@@ -62,6 +62,9 @@ openai_client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     organization=os.getenv("OPENAI_ORG_ID")
 )
+embeddings_model = str(os.getenv("EMBEDDING_MODEL")) # Embeddings Model to use
+if embeddings_model is None:
+    embeddings_model = "text-embedding-3-small"
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -318,7 +321,7 @@ if args.no_embeddings is False:
         baller.set_postfix_str(str(round(cost, 8)))
         baller.update(1)
 
-        return openai_client.embeddings.create(input=x, model="text-embedding-3-small").data[0].embedding
+        return openai_client.embeddings.create(input=x, model=embeddings_model).data[0].embedding
     
     df["embeddings"] = df.content.apply(idk)
     baller.close()
