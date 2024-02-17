@@ -127,7 +127,7 @@ def answer_question(
         model: str=gpt_model,
         question: str="Hello!",
         max_len: int=context_len,
-        size: str="text-embedding-3-small",
+        embeddings_model: str="text-embedding-3-small",
         debug: bool=True,
         max_tokens: int=250,
         stop_sequence=None,
@@ -167,7 +167,7 @@ def answer_question(
     if moderation.results[0].flagged:
         raise Exception("Flagged by OpenAI Moderation System")
 
-    context = create_context(question, df, max_len=max_len, model=size, debug=debug)
+    context = create_context(question, df, max_len=max_len, model=embeddings_model, debug=debug)
     embeddingsusage = context[1]
     page_titles: list[str] = context[2]
     context = context[0].strip()
