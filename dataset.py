@@ -111,13 +111,6 @@ if not args.dump_database:
         datasetpath: str = args.dataset
             
 
-# If args.dataset is an absolute path, get the filename
-datasetname = os.path.basename(datasetpath)
-
-# if args.dataset is a relative path, get the absolute path
-if not os.path.isabs(datasetpath):
-    datasetpath = os.path.join(__location__, datasetpath)
-
 if args.dump_database:
     # Rename the old galaxypedia.csv to galaxypedia.csv.old by searching for anything matching galaxypedia*.csv
     for file in glob(__location__ + "/galaxypedia*.csv"):
@@ -133,7 +126,14 @@ if args.dump_database:
 
     pathlist = sorted(glob(__location__ + "/galaxypedia*.csv"), reverse=True)
     datasetpath: str = pathlist[0]
-    
+
+# If args.dataset is an absolute path, get the filename
+datasetname = os.path.basename(datasetpath)
+
+# if args.dataset is a relative path, get the absolute path
+if not os.path.isabs(datasetpath):
+    datasetpath = os.path.join(__location__, datasetpath)
+ 
 ###############################################################################
 ###############################################################################
 
