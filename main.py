@@ -44,9 +44,7 @@ if context_len is None:
 gpt_model = str(os.getenv("MODEL")) # Model to use
 if gpt_model is None:
     gpt_model = "gpt-3.5-turbo-0125"
-embeddings_model = str(os.getenv("EMBEDDING_MODEL")) # Embeddings Model to use
-if embeddings_model is None:
-    embeddings_model = "text-embedding-3-small"
+embeddings_model = str(os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
 
 print("GalaxyGPT v" + GalaxyGPTVersion + " - " + dataset + " - " + str(context_len) + " max len")
 
