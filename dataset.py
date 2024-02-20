@@ -24,7 +24,6 @@ load_dotenv()
 
 olddatasets = [f for f in os.listdir(".") if re.match(r"^dataset-v\d$", f, flags=re.MULTILINE | re.IGNORECASE)]
  
-# Arguments
 parser = argparse.ArgumentParser("GalaxyGPT Dataset Assistant", description="Generate a dataset for use with GalaxyGPT")
 parser.add_argument("--outdir", "-o", help="The output directory", type=str, required=True)
 parser.add_argument("--cleandir", help="Delete the contents of the output directory if it exists", action=argparse.BooleanOptionalAction, default=None)
@@ -37,7 +36,6 @@ parser.add_argument("--compress-old-datasets", help="Compress old datasets into 
 parser.add_argument("--dataset", help="The path to the datset to use. Defaults to galaxypedia-*.csv, where * is the highest number found in the directory, or to galaxypedia.csv", type=pathlib.Path, default=None, nargs="?")
 args = parser.parse_args()
 
-# Get list of old datasets and compress them
 if args.compress_old_datasets and len(olddatasets) != 0:
     print("Compressing old datasets...")
     for f in olddatasets:
@@ -62,7 +60,7 @@ openai_client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     organization=os.getenv("OPENAI_ORG_ID")
 )
-embeddings_model = str(os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")) # Embeddings Model to use
+embeddings_model = str(os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -76,7 +74,6 @@ print(Fore.GREEN + "Saving results to " + outdir + "!")
 if not os.path.exists(outdir):
     os.makedirs(outdir)
     
-# Check if there are any files in the output directory
 if os.listdir(outdir):
     if args.cleandir is None:
         os.system("cls" if os.name == "nt" else "clear")
@@ -93,10 +90,9 @@ if os.listdir(outdir):
         print("Deleted the contents of " + outdir + "!")
         
         
-# Load the dataset as a dataframe
 if not args.dump_database:
     if args.dataset is None:
-        # get the first file that matches the glob, prioritizing the file with the largest number by sorting the list numerically then reversing the list
+        # Get the first file that matches the glob, prioritizing the file with the largest number by sorting the list numerically then reversing the list
         pathlist = sorted(glob(__location__ + "/galaxypedia*.csv"), reverse=True)
         if pathlist == []:
             raise Exception("Dataset starting with \'galaxypedia\' and ending with \'.csv\' could not be found!")
@@ -110,7 +106,6 @@ if not args.dump_database:
             
 
 if args.dump_database:
-    # Rename the old galaxypedia.csv to galaxypedia.csv.old by searching for anything matching galaxypedia*.csv
     for file in glob(__location__ + "/galaxypedia*.csv"):
         print("Renaming galaxypedia*.csv to galaxypedia*.csv.old")
         os.rename(os.path.join(file), os.path.join(file + ".old"))
@@ -125,16 +120,13 @@ if args.dump_database:
     pathlist = sorted(glob(__location__ + "/galaxypedia*.csv"), reverse=True)
     datasetpath: str = pathlist[0]
 
-# If args.dataset is an absolute path, get the filename
 datasetname = os.path.basename(datasetpath)
 
-# if args.dataset is a relative path, get the absolute path
 if not os.path.isabs(datasetpath):
     datasetpath = os.path.join(__location__, datasetpath)
  
 ###############################################################################
 ###############################################################################
-
 
 def remove_newlines(serie):
     serie = serie.str.replace("\n", " ")
@@ -152,22 +144,23 @@ df = pd.read_csv(
     names=["page_title", "content"],
 )
 
-# grab the page titles for later
 page_titles = df.page_title.str.lower().str.replace("_", " ").str.strip()
 
 spinner.succeed(f"Loaded {str(datasetname)}!")
 
-
 # Sanitize the dataset's contents to make it more readable for the model
 spinner = Halo(text="Sanitizing dataset", spinner="dots")
+
 # Remove newlines
 contentprocessed = remove_newlines(df.content)
+
 # Remove Gallery tags
 galleryregex = re.compile(r"(\|image.?=.?)?<gallery.*?>.*?<\/gallery>\\?\n?", re.S)
 contentprocessed = contentprocessed.str.replace(
     galleryregex,
     "", regex=True,
 )
+
 # Remove links to files
 spinner.text = "Sanitizing dataset (removing links to files)"
 fileregex = re.compile(r"\[\[File:.*?\]\]\\?", re.S)
@@ -200,15 +193,14 @@ spinner = Halo(text="Saving sanitized dataset", spinner="dots")
 df["content"] = contentprocessed.str.strip()
 rows_to_drop = df[df["content"]==""].index
 df.drop(rows_to_drop, inplace=True)
-# Assemble the final page content
+
 df["content"] = df.page_title.str.lower().str.replace("_", " ").str.strip() + ". " + df.content.str.strip()
-# Save
+
 df.to_csv(os.path.join(__location__, outdir, "processed.csv"))
 spinner.succeed("Saved sanitized dataset!")
 
 ################################################################################
 
-# Load the cl100k_base tokenizer which is designed to work with the text-embedding-ada-002 and text-embedding-3-small models
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
 spinner = Halo(text="Loading sanitized dataset", spinner="dots")
@@ -225,11 +217,10 @@ print(Fore.GREEN + "✔ " + Fore.RESET + "Tokenized!")
 max_tokens: int = args.max_len
 
 # Function to split the text into chunks of a maximum number of tokens
+# TODO: Move the comment into docstring
 def split_into_many(text, max_tokens=max_tokens):
-    # Split the text into sentences
     sentences: str = text.split(". ")
 
-    # Get the number of tokens for each sentence
     n_tokens = [len(tokenizer.encode(" " + sentence)) for sentence in sentences]
 
     chunks = []
@@ -265,11 +256,9 @@ shortened = []
 # that is the amount of pages in that index
 embeddings_pages_by_row = []
 
-# Loop through the dataframe
 itrows = tqdm(df.iterrows(), total=df.shape[0], desc="Splitting dataset into chunks", leave=False)
 
 for row in itrows:
-    # If the text is None, go to the next row
     if row[1]["content"] is None:
         embeddings_pages_by_row.append(0) # there is 0 pages for this pagetitle index
         continue
