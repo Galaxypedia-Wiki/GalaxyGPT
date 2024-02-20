@@ -62,9 +62,7 @@ openai_client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     organization=os.getenv("OPENAI_ORG_ID")
 )
-embeddings_model = str(os.getenv("EMBEDDING_MODEL")) # Embeddings Model to use
-if embeddings_model is None:
-    embeddings_model = "text-embedding-3-small"
+embeddings_model = str(os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")) # Embeddings Model to use
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
