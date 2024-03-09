@@ -141,7 +141,7 @@ df = pd.read_csv(
     datasetpath,
     escapechar="\\",
     header=0,
-    names=["page_title", "content"],
+    names=["page_namespace", "page_title", "content"],
 )
 
 page_titles = df.page_title.str.lower().str.replace("_", " ").str.strip()
@@ -194,6 +194,17 @@ df["content"] = contentprocessed.str.strip()
 rows_to_drop = df[df["content"]==""].index
 df.drop(rows_to_drop, inplace=True)
 
+def includeNamespaceInTitle(row):
+    namespace = ""
+
+    if row["page_namespace"] == 4:
+        namespace = "Galaxypedia:"
+        
+    row["page_title"] = namespace + row["page_title"]
+    return row
+
+df = df.apply(includeNamespaceInTitle, axis=1)
+
 df["content"] = df.page_title.str.lower().str.replace("_", " ").str.strip() + ". " + df.content.str.strip()
 
 df.to_csv(os.path.join(__location__, outdir, "processed.csv"))
@@ -205,7 +216,7 @@ tokenizer = tiktoken.get_encoding("cl100k_base")
 
 spinner = Halo(text="Loading sanitized dataset", spinner="dots")
 df = pd.read_csv(os.path.join(__location__, outdir, "processed.csv"), index_col=0)
-df.columns = ["page_title", "content"]
+df.columns = ["page_namespace", "page_title", "content"]
 spinner.succeed("Loaded sanitized dataset!")
 
 # Tokenize the text and save the number of tokens to a new column
