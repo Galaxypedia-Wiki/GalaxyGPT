@@ -2,7 +2,7 @@ numpy==1.24.3
 pandas==2.0.2
 regex==2023.12.25
 requests==2.31.0
-tiktoken==0.4.0
+tiktoken==0.6.0
 
 # my own custom ones
 flask==2.3.2
