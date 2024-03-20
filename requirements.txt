@@ -14,7 +14,7 @@ scipy==1.11.4
 #chromadb
 #mysql-connector-python==8.0.33
 Flask-Limiter==3.3.1
-waitress==2.1.2
+waitress==3.0.0
 tqdm==4.65
 halo==0.0.31
 colorama==0.4.6
