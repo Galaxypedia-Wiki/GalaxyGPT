@@ -13,7 +13,7 @@ scipy==1.11.4
 #openai[datalib]==0.27.8
 #chromadb
 #mysql-connector-python==8.0.33
-Flask-Limiter==3.3.1
+Flask-Limiter==3.6.0
 waitress==2.1.2
 tqdm==4.65
 halo==0.0.31
