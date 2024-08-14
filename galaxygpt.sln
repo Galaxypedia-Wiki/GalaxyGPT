@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "galaxygpt", "galaxygpt\galaxygpt.csproj", "{166D8A8A-3D45-4473-B81F-822074C27B8F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dataset-assistant", "dataset-assistant\dataset-assistant.csproj", "{DBF1F8D2-14CA-42CB-9BA7-4C2B72B9A681}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "galaxygpt-api", "galaxygpt-api\galaxygpt-api.csproj", "{EDB6CCC4-DCE5-4658-9F4B-A4F37E4C505D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "galaxygpt-tests", "galaxygpt-tests\galaxygpt-tests.csproj", "{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{166D8A8A-3D45-4473-B81F-822074C27B8F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{166D8A8A-3D45-4473-B81F-822074C27B8F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{166D8A8A-3D45-4473-B81F-822074C27B8F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{166D8A8A-3D45-4473-B81F-822074C27B8F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DBF1F8D2-14CA-42CB-9BA7-4C2B72B9A681}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DBF1F8D2-14CA-42CB-9BA7-4C2B72B9A681}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DBF1F8D2-14CA-42CB-9BA7-4C2B72B9A681}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DBF1F8D2-14CA-42CB-9BA7-4C2B72B9A681}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EDB6CCC4-DCE5-4658-9F4B-A4F37E4C505D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EDB6CCC4-DCE5-4658-9F4B-A4F37E4C505D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EDB6CCC4-DCE5-4658-9F4B-A4F37E4C505D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EDB6CCC4-DCE5-4658-9F4B-A4F37E4C505D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
