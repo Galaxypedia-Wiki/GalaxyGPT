@@ -1,5 +1,5 @@
 
-using Asp.Versioning.ApiExplorer;
+using System.Reflection;
 using Asp.Versioning.Builder;
 using galaxygpt;
 using Microsoft.Extensions.Options;
@@ -45,19 +45,19 @@ public class Program
         #region API
         RouteGroupBuilder v1 = versionedApi.MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
 
-        v1.MapPost("ask", async (string prompt, string? model, string? username) =>
+        v1.MapPost("ask", async (AskPayload askPayload) =>
         {
-            if (string.IsNullOrEmpty(prompt))
-            {
+            if (string.IsNullOrEmpty(askPayload.Prompt))
                 return Results.BadRequest("The question cannot be empty.");
-            }
 
-            string answer = await GalaxyGpt.AnswerQuestion(prompt, model ?? app.Configuration["MODEL"] ?? throw new InvalidOperationException(), 4096, 4096, 4096, username: username);
+            (string, int) context = await GalaxyGpt.FetchContext(askPayload.Prompt, "text-embedding-3-small");
+            string answer = await GalaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, askPayload.Model ?? app.Configuration["MODEL"] ?? throw new InvalidOperationException(), 4096, 4096, username: askPayload.Username);
 
             var results = new Dictionary<string, string>
             {
                 { "answer", answer.Trim() },
-                { "version", Environment.Version.ToString() }
+                { "context", context.Item1 },
+                { "version", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty}
             };
 
             return Results.Json(results);
@@ -77,18 +77,27 @@ public class Program
         #endregion
 
         app.UseSwagger();
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseSwaggerUI(options =>
-            {
-                foreach ( ApiVersionDescription description in app.DescribeApiVersions() )
-                {
-                    options.SwaggerEndpoint(
-                        $"/swagger/{description.GroupName}/swagger.json",
-                        description.GroupName );
-                }
-            });
-        }
+        // if (app.Environment.IsDevelopment())
+        // {
+        //     app.UseSwaggerUI(options =>
+        //     {
+        //         foreach ( ApiVersionDescription description in app.DescribeApiVersions() )
+        //         {
+        //             options.SwaggerEndpoint(
+        //                 $"/swagger/{description.GroupName}/swagger.json",
+        //                 description.GroupName );
+        //         }
+        //     });
+        // }
         app.Run();
     }
+}
+
+// ReSharper disable once ArrangeTypeModifiers
+// ReSharper disable once ClassNeverInstantiated.Global
+class AskPayload
+{
+    public required string Prompt { get; set; }
+    public string? Model { get; set; }
+    public string? Username { get; set; }
 }

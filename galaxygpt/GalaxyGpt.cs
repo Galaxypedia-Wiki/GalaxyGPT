@@ -16,27 +16,28 @@ namespace galaxygpt;
 public static class GalaxyGpt
 {
     // TODO: Migrate to dependency injection
-    public static readonly VectorDb Db = new();
-    private static readonly IConfigurationRoot Configuration = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: false, true).Build();
-    public static readonly OpenAIClient OpenAiClient = new(Configuration["OPENAI_API_KEY"] ?? throw new InvalidOperationException());
+    private static readonly VectorDb Db = new();
+    private static readonly IConfigurationRoot Configuration = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true, true).AddEnvironmentVariables().Build();
+    private static readonly OpenAIClient OpenAiClient = new(Configuration["OPENAI_API_KEY"] ?? throw new InvalidOperationException());
     public static readonly TiktokenTokenizer GptTokenizer = TiktokenTokenizer.CreateForModel("gpt-4o-mini");
-    public static readonly TiktokenTokenizer EmbeddingsTokenizer = TiktokenTokenizer.CreateForModel("text-embedding-3-small");
+    private static readonly TiktokenTokenizer EmbeddingsTokenizer = TiktokenTokenizer.CreateForModel("text-embedding-3-small");
 
     /// <summary>
     /// Answer a question using the specified model.
     /// </summary>
     /// <param name="question">What questions to ask</param>
+    /// <param name="context"></param>
     /// <param name="model">A string of which model to use</param>
     /// <param name="maxInputTokens"></param>
     /// <param name="maxOutputTokens">The maximum amount of tokens to return. ds this number.</param>
-    /// <param name="maxLength">The maximum length that the context should be. The higher the number, the more context there will be, but also the more cost for the request.</param>
-    /// <param name="embeddingsModel">The model to use for generating embeddings of the question. Typically, this should be the same as your dataset.</param>
     /// <param name="moderationModel"></param>
     /// <param name="username">The username to pass to the bot, used for personalizing the response.</param>
+    /// <param name="temperature"></param>
     /// <param name="db">The database to use in the context. This defaults to the GalaxyGPT-wide database, but can be manually set to another as needed.</param>
-    public static async Task<string> AnswerQuestion(string question, string model, int maxInputTokens, int maxOutputTokens,
-        int maxLength, string embeddingsModel = "text-embedding-3-small",
-        string moderationModel = "text-moderation-stable", string? username = null, VectorDb? db = null)
+    public static async Task<string> AnswerQuestion(string question, string context, string model, int maxInputTokens,
+        int maxOutputTokens,
+        string moderationModel = "text-moderation-stable", string? username = null, int temperature = 1,
+        VectorDb? db = null)
     {
         db ??= Db;
 
@@ -70,9 +71,6 @@ public static class GalaxyGpt
 
         #endregion
 
-        // Fetch the context
-        (string context, int _) = await FetchContext(question, maxLength, embeddingsModel);
-
         ChatClient? chatClient = OpenAiClient.GetChatClient(model);
 
         List<ChatMessage> messages =
@@ -103,23 +101,26 @@ public static class GalaxyGpt
         ClientResult<ChatCompletion>? idk = await chatClient.CompleteChatAsync(messages, new ChatCompletionOptions
         {
             MaxTokens = maxOutputTokens,
-            Temperature = 0
+            Temperature = temperature
 
         });
         messages.Add(new AssistantChatMessage(idk));
 
-        foreach (ChatMessage message in messages)
-        {
-            string role = message.GetType().Name;
-            string text = message.Content[0].Text;
-
-            Console.WriteLine($"{role}: {text}");
-        }
-
         return messages[^1].Content[0].Text;
     }
 
-    private static async Task<(string, int)> FetchContext(string question, int maxLength, string model, VectorDb? db = null)
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="question"></param>
+    /// <param name="model"></param>
+    /// <param name="db"></param>
+    /// <param name="maxLength">If left null, the top 5 chunks will be returned</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static async Task<(string, int)> FetchContext(string question, string model, VectorDb? db = null,
+        int? maxLength = null)
     {
         db ??= Db;
         question = question.Trim();
@@ -133,49 +134,54 @@ public static class GalaxyGpt
         EmbeddingClient? embeddingsClient = OpenAiClient.GetEmbeddingClient(model);
         ClientResult<Embedding>? questionEmbeddings = await embeddingsClient.GenerateEmbeddingAsync(question);
 
-        // TODO: Optimize this to work with the database directly, instead of exporting the data to a list
-        List<Page> pages = db.Pages.Include(page => page.Chunks).ToList();
-        DataTable pageEmbeddings = new();
-        pageEmbeddings.Columns.Add("Page", typeof(Page));
-        pageEmbeddings.Columns.Add("Embeddings", typeof(float[]));
-        pageEmbeddings.Columns.Add("ChunkId", typeof(int));
-        pageEmbeddings.Columns.Add("Distance", typeof(float));
+        List<Page> pages = await db.Pages.Include(chunk => chunk.Chunks).ToListAsync();
+        var pageEmbeddings = new List<(Page page, float[] embeddings, int chunkId, float distance)>();
 
         foreach (Page page in pages)
         {
-            if ((page.Chunks == null || page.Chunks.Count == 0) && page.Embeddings != null)
-                pageEmbeddings.Rows.Add(page, page.Embeddings.ToArray(), -1);
+            if (page.Chunks == null || page.Chunks.Count == 0)
+            {
+                if (page.Embeddings == null) continue;
+
+                float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(), page.Embeddings.ToArray());
+                pageEmbeddings.Add((page, page.Embeddings.ToArray(), -1, distance));
+            }
             else if (page.Chunks != null)
+            {
                 foreach (Chunk chunk in page.Chunks)
                 {
-                    if (chunk.Embeddings != null) pageEmbeddings.Rows.Add(page, chunk.Embeddings.ToArray(), chunk.Id);
+                    if (chunk.Embeddings == null) continue;
+
+                    float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(), chunk.Embeddings.ToArray());
+                    pageEmbeddings.Add((page, chunk.Embeddings.ToArray(), chunk.Id, distance));
                 }
+            }
         }
 
-        foreach (DataRow row in pageEmbeddings.Rows)
-        {
-            float[] embeddings = (float[])row["Embeddings"];
-            float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(), embeddings);
-            row["Distance"] = distance;
-        }
-
-        pageEmbeddings.DefaultView.Sort = "Distance DESC";
-        pageEmbeddings = pageEmbeddings.DefaultView.ToTable();
+        pageEmbeddings.Sort((a, b) => b.distance.CompareTo(a.distance));
 
         StringBuilder context = new();
         int tokenCount = GptTokenizer.CountTokens(question);
+        int iterations = 0;
 
-        foreach (DataRow row in pageEmbeddings.Rows)
+        foreach ((Page page, float[] _, int chunkId, float _) in pageEmbeddings)
         {
-            var page = (Page)row["Page"];
-            int? chunkId = (int?)row["ChunkId"];
             string content = chunkId == -1|| page.Chunks == null || page.Chunks.Count == 0 ? page.Content : page.Chunks.First(chunk => chunk.Id == chunkId).Content;
 
-            tokenCount += GptTokenizer.CountTokens(content);
-            if (tokenCount > maxLength)
-                break;
+            if (maxLength == null)
+            {
+                if (iterations >= 5)
+                    break;
+            }
+            else
+            {
+                tokenCount += GptTokenizer.CountTokens(content);
+                if (tokenCount > maxLength)
+                    break;
+            }
 
             context.Append($"Page: {page.Title}\nContent: {content}\n\n###\n\n");
+            iterations++;
         }
 
         return (context.ToString(), EmbeddingsTokenizer.CountTokens(question));

@@ -5,9 +5,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
-using galaxygpt;
 using galaxygpt.Database;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.ML.Tokenizers;
+using OpenAI;
 using OpenAI.Embeddings;
 
 namespace dataset_assistant;
@@ -38,6 +39,18 @@ partial class Program
     [GeneratedRegex(@"<div.*?>|<\/div>\\?\n?", RegexOptions.Singleline)]
     private static partial Regex DivTagRegex();
 
+    [GeneratedRegex(@"'{3,}(.*?)'{3,}")]
+    private static partial Regex BoldItalicsRegex();
+
+    [GeneratedRegex(@"\[\[([^\[\]\|]+?)\|([^\[\]]+?)\]\]")]
+    private static partial Regex LinkSlicerRegex();
+
+    [GeneratedRegex(@"\[\[(.*?)\]\]")]
+    private static partial Regex ShortenLinksRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex ExtraWhitespaceRegex();
+
     private static async Task<int> Main(string[] args)
     {
         #region Options
@@ -65,14 +78,6 @@ partial class Program
             "Dump the database to the output directory"
         );
 
-        var maxLengthOption = new Option<int>(
-            ["--maxLength", "-m"],
-            "The maximum length of the content"
-        )
-        {
-            IsRequired = true
-        };
-
         var compressOldDatasetsOption = new Option<bool>(
             ["--compressOldDatasets", "-C"],
             "Compress old datasets in the output directory"
@@ -94,6 +99,17 @@ partial class Program
             IsRequired = true
         };
 
+        var embeddingsModelOption = new Option<string>(
+            ["--embeddingsModel", "-e"],
+            getDefaultValue: () => "text-embedding-3-small",
+            "The embeddings model to use"
+        );
+
+        var openAiApiKeyOption = new Option<string>(
+            ["--openAiApiKey", "-k"],
+            "The OpenAI API key"
+        );
+
         #endregion
 
         var rootCommand = new RootCommand("GalaxyGPT Dataset Management Assistant")
@@ -102,30 +118,46 @@ partial class Program
             cleanDirOption,
             noEmbeddingsOption,
             dumpDatabaseOption,
-            maxLengthOption,
             compressOldDatasetsOption,
             datasetNameOption,
-            dumpPathOption
+            dumpPathOption,
+            embeddingsModelOption,
+            openAiApiKeyOption
         };
 
         rootCommand.SetHandler(async handler =>
         {
+            #region Option Values
+
             string? datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory);
             bool? cleanDirOptionValue = handler.ParseResult.GetValueForOption(cleanDirOption);
             bool? noEmbeddingsOptionValue = handler.ParseResult.GetValueForOption(noEmbeddingsOption);
             bool? dumpDatabaseOptionValue = handler.ParseResult.GetValueForOption(dumpDatabaseOption);
-            int? maxLengthOptionValue = handler.ParseResult.GetValueForOption(maxLengthOption);
             bool? compressOldDatasetsOptionValue = handler.ParseResult.GetValueForOption(compressOldDatasetsOption);
             string? datasetNameOptionValue = handler.ParseResult.GetValueForOption(datasetNameOption);
             string dumpPathOptionValue = handler.ParseResult.GetValueForOption(dumpPathOption)!;
+            string embeddingsModelOptionValue = handler.ParseResult.GetValueForOption(embeddingsModelOption)!;
+            string? openAiApiKeyOptionValue = handler.ParseResult.GetValueForOption(openAiApiKeyOption);
 
-            await GalaxyGpt.Db.Database.EnsureDeletedAsync();
-            await GalaxyGpt.Db.Database.MigrateAsync();
+            #endregion
+
+            #region Dependencies
+
+            Console.WriteLine("Setting up dependencies");
+            await using var db = new VectorDb();
+            var embeddingsTokenizer = TiktokenTokenizer.CreateForModel(embeddingsModelOptionValue);
+            OpenAIClient openAiClient = new(openAiApiKeyOptionValue ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new InvalidOperationException());
+
+            await db.Database.EnsureDeletedAsync();
+            await db.Database.MigrateAsync();
+
+            #endregion
+
+            #region CSV Reading
 
             string csvData = await File.ReadAllTextAsync(dumpPathOptionValue);
             csvData = csvData.Replace("\\\n", "\n");
 
-            // Read the database dump, which is a csv
             using var reader = new StringReader(csvData);
             using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
             {
@@ -144,7 +176,11 @@ partial class Program
             await csv.ReadAsync();
             csv.ReadHeader();
 
-            // Could possibly run some of this in parallel
+            #endregion
+
+            #region CSV Sanitization & Database Insertion
+
+            Console.WriteLine("Sanitizing and inserting data into the database");
             while (await csv.ReadAsync())
             {
                 string? title = csv.GetField<string>("page_title");
@@ -164,6 +200,10 @@ partial class Program
                 content = HtmlCommentRegex().Replace(content, "");
                 content = SpanBrRegex().Replace(content, "");
                 content = DivTagRegex().Replace(content, "");
+                content = BoldItalicsRegex().Replace(content, "$1");
+                content = LinkSlicerRegex().Replace(content, "$2");
+                content = ShortenLinksRegex().Replace(content, "$1");
+                content = ExtraWhitespaceRegex().Replace(content, " ");
                 content = content.Trim();
 
                 if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(content))
@@ -175,30 +215,30 @@ partial class Program
                     Content = content
                 };
 
-                GalaxyGpt.Db.Add(page);
+                db.Add(page);
             }
 
-            await GalaxyGpt.Db.SaveChangesAsync();
+            await db.SaveChangesAsync();
 
-            // Finished adding all the pages to the database.
+            #endregion
+
+            #region Chunking
 
             const int maxtokens = 8192;
 
-            // Chunk the pages into smaller pages
-            foreach (Page page in GalaxyGpt.Db.Pages)
+            Console.WriteLine("Chunking pages");
+            foreach (Page page in db.Pages)
             {
+                if (page.Tokens <= maxtokens) continue;
+
                 List<Chunk> chunks = [];
                 string content = page.Content;
 
-                if (page.Tokens <= maxtokens) continue;
-                while (true) // Loop until the content is empty
+                while (content.Length > 0)
                 {
-                    int splitIndex = GalaxyGpt.EmbeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int tokencount);
-                    string chunk = content[..splitIndex];
-                    Console.WriteLine("Splitting page " + page.Title + " at index " + splitIndex + " with token count " + tokencount);
-                    chunks.Add(new Chunk { Content = chunk });
+                    int splitIndex = embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int tokencount);
+                    chunks.Add(new Chunk { Content = content[..splitIndex] });
 
-                    // The last chunk will be the remainder of the content. So we break the loop here
                     if (splitIndex == content.Length)
                         break;
 
@@ -208,34 +248,38 @@ partial class Program
                 page.Chunks = chunks;
             }
 
-            await GalaxyGpt.Db.SaveChangesAsync();
+            await db.SaveChangesAsync();
 
-            // Create embeddings for each page, or chunks if they exist. Can also be done in parallel
-            EmbeddingClient? embeddingsClient = GalaxyGpt.OpenAiClient.GetEmbeddingClient("text-embedding-3-small");
+            #endregion
 
-            await Parallel.ForEachAsync(GalaxyGpt.Db.Pages, async (page, cancellationToken) =>
+            #region Embedding
+
+            EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
+
+            Console.WriteLine("Generating embeddings");
+            foreach (Page page in db.Pages.Include(page => page.Chunks))
             {
+                Console.WriteLine("Embedding page " + page.Title);
                 // Handle the case where the page has no chunks
                 if (page.Chunks == null || page.Chunks.Count == 0)
                 {
-                    Console.WriteLine("generating embeddings for " + page.Title);
-                    ClientResult<Embedding>? embedding = await embeddingsClient.GenerateEmbeddingAsync(page.Content, cancellationToken: cancellationToken);
+                    ClientResult<Embedding>? embedding = await embeddingsClient.GenerateEmbeddingAsync(page.Content);
                     page.Embeddings = embedding.Value.Vector.ToArray().ToList();
-                    return;
                 }
-
-                int chunkNumber = 0;
-                // Handle the case where the page has chunks
-                foreach (Chunk chunk in page.Chunks)
+                else
                 {
-                    Console.WriteLine($"generating embeddings for {page.Title} chunk {chunkNumber} with token count {GalaxyGpt.GptTokenizer.CountTokens(chunk.Content)}");
-                    ClientResult<Embedding>? embedding = await embeddingsClient.GenerateEmbeddingAsync(chunk.Content, cancellationToken: cancellationToken);
-                    chunk.Embeddings = embedding.Value.Vector.ToArray().ToList();
-                    chunkNumber++;
+                    // Handle the case where the page has chunks
+                    foreach (Chunk chunk in page.Chunks)
+                    {
+                        ClientResult<Embedding>? embedding = await embeddingsClient.GenerateEmbeddingAsync(chunk.Content);
+                        chunk.Embeddings = embedding.Value.Vector.ToArray().ToList();
+                    }
                 }
-            });
+            }
 
-            await GalaxyGpt.Db.SaveChangesAsync();
+            await db.SaveChangesAsync();
+
+            #endregion
         });
 
         return await rootCommand.InvokeAsync(args);
