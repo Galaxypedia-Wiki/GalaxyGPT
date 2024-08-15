@@ -1,11 +1,11 @@
 ## GalaxyGPT
 GalaxyGPT is an open-source project that aims to create an AI assistant for Galaxy. GalaxyGPT works by embedding the Galaxypedia's database, then using cosine similarity to find relevant pages for a user's query. The information is then given to ChatGPT to generate a response.
 
-[!NOTE]
-This README is a work in progress. Please check back later for more information.
+> [!NOTE]
+> This README is a work in progress. Please check back later for more information.
 
-[!NOTE]
-Also note that this project is still in the early stages of development
+> [!NOTE]
+> Also note that this project is still in the early stages of development. We recently migrated from python to c# so there's a lot that is missing.
 
 ## Technical Details
 See [Technical Details](https://blog.smallketchup.ca/galaxypedia/2024/08/14/GalaxyGPT.html#:~:text=in%20your%20pocket!-,technical%20details,-This%20is%20the)
