@@ -1,4 +1,7 @@
-﻿using System.ClientModel;
+﻿// Copyright (c) smallketchup82. Licensed under the GPL3 Licence.
+// See the LICENCE file in the repository root for full licence text.
+
+using System.ClientModel;
 using System.Data;
 using System.Numerics.Tensors;
 using System.Text;
