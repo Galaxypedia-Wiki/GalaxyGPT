@@ -10,11 +10,17 @@ GalaxyGPT is an open-source project that aims to create an AI assistant for Gala
 ## Technical Details
 See [Technical Details](https://blog.smallketchup.ca/galaxypedia/2024/08/14/GalaxyGPT.html#:~:text=in%20your%20pocket!-,technical%20details,-This%20is%20the)
 
-## Developing
+## Setting Up GalaxyGPT
+> [!WARNING]
+> You cannot currently run GalaxyGPT on your own machine because the Galaxypedia database dumps are not publicly available for the time being. Please check back later about this!
+
 Open the solution in your favorite C# IDE. I recommend JetBrains Rider, but Visual Studio should work as well.
 
 There is currently no way to run the project outside of the API, as unit tests are a work in progress.
 
+### Creating a dataset
+
+### Running
 To run the API, run the `galaxygpt-api` project. The API will be available at `http://localhost:3636`.
 
 To ask a question, send a POST request to `http://localhost:3636/api/v1/ask` with the following JSON body:
