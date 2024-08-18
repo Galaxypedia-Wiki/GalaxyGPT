@@ -3,12 +3,14 @@
 
 using System.ClientModel;
 using System.CommandLine;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
 using galaxygpt.Database;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
@@ -18,6 +20,8 @@ namespace dataset_assistant;
 
 partial class Program
 {
+    #region Regex
+
     // Gallery tag regex
     [GeneratedRegex(@"(\|image.?=.?)?<gallery.*?>.*?<\/gallery>\\?\n?", RegexOptions.Singleline)]
     private static partial Regex GalleryTagRegex();
@@ -53,6 +57,8 @@ partial class Program
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex ExtraWhitespaceRegex();
+
+    #endregion
 
     private static async Task<int> Main(string[] args)
     {
@@ -283,6 +289,102 @@ partial class Program
             await db.SaveChangesAsync();
 
             #endregion
+        });
+
+        var legacyDumpCommand = new Option<bool>(
+            "--legacy",
+            "Use the legacy database dump method. Which is using the mysql command line tool instead of the .NET connector"
+        );
+
+        var dumpCommand = new Command("dump", "Dump the database to the output directory")
+        {
+            legacyDumpCommand
+        };
+        rootCommand.AddCommand(dumpCommand);
+
+        dumpCommand.SetHandler(async handler =>
+        {
+            Console.Write("Enter the database user password: ");
+            string? password = Console.ReadLine();
+
+            if (string.IsNullOrEmpty(password))
+                throw new InvalidOperationException("Password cannot be empty");
+
+            if (!handler.ParseResult.GetValueForOption(legacyDumpCommand))
+            {
+                SqlConnectionStringBuilder builder = new()
+                {
+                    DataSource = "localhost",
+                    InitialCatalog = "galaxypedia",
+                    UserID = "root",
+                    Password = password
+                };
+
+                await using SqlConnection connection = new(builder.ConnectionString);
+                await connection.OpenAsync();
+
+                // Select the page_namespace, page_title, and old_text (content) columns from the page table
+                var command = new SqlCommand(
+                    """SELECT page_namespace, page_title "page_name", old_text "content" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = "tt:" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0""",
+                    connection);
+                await using SqlDataReader reader = await command.ExecuteReaderAsync();
+
+                await using var csvWriter = new CsvWriter(new StreamWriter("dump.csv", false, Encoding.UTF8),
+                    new CsvConfiguration(CultureInfo.InvariantCulture)
+                    {
+                        HasHeaderRecord = true,
+                    });
+
+                // Add the header row
+                csvWriter.WriteField("page_namespace");
+                csvWriter.WriteField("page_title");
+                csvWriter.WriteField("content");
+
+                await csvWriter.WriteRecordsAsync(reader);
+
+                Console.WriteLine("Database dumped to dump.csv");
+
+                reader.Close();
+                await connection.CloseAsync();
+            }
+            else
+            {
+                const string sqlDumpQuery =
+                    """USE galaxypedia; SELECT page_namespace, page_title \"page_name\", old_text \"content\" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = \"tt:\" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0 into outfile '/tmp/galaxypedia.csv' FIELDS TERMINATED BY ',' ENCLOSED BY '\"' LINES TERMINATED BY '\n';""";
+                using Process? process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "mysql",
+                    Arguments = $"-u root -p{password} -e {sqlDumpQuery}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = true
+                });
+
+                if (process == null)
+                    throw new InvalidOperationException("Failed to start the mysql process");
+
+                await process.WaitForExitAsync();
+
+                Console.WriteLine("Database dumped to /tmp/galaxypedia.csv");
+
+                File.Move("/tmp/galaxypedia.csv", "dump.csv", true);
+
+                string username = Environment.UserName;
+                using Process? chownProcess = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "chown",
+                    Arguments = $"{username}:{username} dump.csv",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = true
+                });
+
+                if (chownProcess == null)
+                    throw new InvalidOperationException("Failed to start the chown process");
+
+                await chownProcess.WaitForExitAsync();
+                Console.WriteLine("Done");
+            }
         });
 
         return await rootCommand.InvokeAsync(args);
