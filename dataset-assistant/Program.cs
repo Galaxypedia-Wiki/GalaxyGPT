@@ -5,6 +5,7 @@ using System.ClientModel;
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
@@ -66,7 +67,8 @@ partial class Program
 
         var datasetDirectory = new Option<string>(
             ["--directory", "-d"],
-            "The directory that stores the datasets"
+            getDefaultValue: () => ".",
+            "The directory that stores the dataset folders (i.e. working directory)"
         )
         {
             IsRequired = true
@@ -74,17 +76,12 @@ partial class Program
 
         var cleanDirOption = new Option<bool>(
             ["--cleanDir", "-c"],
-            "Clean the output directory before writing the dataset"
+            "If a dataset with the same name already exists, delete it before proceeding"
         );
 
         var noEmbeddingsOption = new Option<bool>(
             ["--noEmbeddings", "-n"],
-            "Do not include embeddings in the dataset"
-        );
-
-        var dumpDatabaseOption = new Option<bool>(
-            ["--dumpDatabase", "-dd"],
-            "Dump the database to the output directory"
+            "Do not generate embeddings for the dataset. Useful for debugging without incurring API costs"
         );
 
         var compressOldDatasetsOption = new Option<bool>(
@@ -94,15 +91,12 @@ partial class Program
 
         var datasetNameOption = new Option<string>(
             ["--datasetName", "-N"],
-            "The name of the dataset"
-        )
-        {
-            IsRequired = true
-        };
+            "The name of the dataset. Defaults to dataset-v<n> where <n> is an increment of the latest dataset in the directory"
+        );
 
         var dumpPathOption = new Option<string>(
             ["--dbDumpPath", "-D"],
-            "The path to the database dump"
+            "The path to the database dump file. This file should be a csv file"
         )
         {
             IsRequired = true
@@ -126,7 +120,6 @@ partial class Program
             datasetDirectory,
             cleanDirOption,
             noEmbeddingsOption,
-            dumpDatabaseOption,
             compressOldDatasetsOption,
             datasetNameOption,
             dumpPathOption,
@@ -141,7 +134,6 @@ partial class Program
             string? datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory);
             bool? cleanDirOptionValue = handler.ParseResult.GetValueForOption(cleanDirOption);
             bool? noEmbeddingsOptionValue = handler.ParseResult.GetValueForOption(noEmbeddingsOption);
-            bool? dumpDatabaseOptionValue = handler.ParseResult.GetValueForOption(dumpDatabaseOption);
             bool? compressOldDatasetsOptionValue = handler.ParseResult.GetValueForOption(compressOldDatasetsOption);
             string? datasetNameOptionValue = handler.ParseResult.GetValueForOption(datasetNameOption);
             string dumpPathOptionValue = handler.ParseResult.GetValueForOption(dumpPathOption)!;
@@ -150,10 +142,38 @@ partial class Program
 
             #endregion
 
+            #region Directory Validation
+
+            if (!Directory.Exists(datasetDirectoryValue))
+                throw new InvalidOperationException("The dataset directory does not exist");
+
+            string[] existingDatasets = Directory.GetDirectories(datasetDirectoryValue, "dataset-v*");
+
+            datasetNameOptionValue ??= existingDatasets.Length == 0
+                ? "dataset-v1"
+                : $"dataset-v{existingDatasets.Length + 2}";
+
+            if (cleanDirOptionValue == true && Directory.Exists(Path.Combine(datasetDirectoryValue, datasetNameOptionValue)))
+                Directory.Delete(Path.Combine(datasetDirectoryValue, datasetNameOptionValue), true);
+
+            if (compressOldDatasetsOptionValue == true)
+            {
+                foreach (string dataset in existingDatasets)
+                {
+                    string zipPath = Path.Combine(datasetDirectoryValue, $"{Path.GetFileName(dataset)}.zip");
+                    ZipFile.CreateFromDirectory(dataset, zipPath);
+                    Directory.Delete(dataset, true);
+                }
+            }
+
+            Directory.CreateDirectory(Path.Combine(datasetDirectoryValue, datasetNameOptionValue));
+
+            #endregion
+
             #region Dependencies
 
             Console.WriteLine("Setting up dependencies");
-            await using var db = new VectorDb();
+            await using var db = new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue));
             var embeddingsTokenizer = TiktokenTokenizer.CreateForModel(embeddingsModelOptionValue);
             OpenAIClient openAiClient = new(openAiApiKeyOptionValue ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new InvalidOperationException());
 
@@ -245,7 +265,7 @@ partial class Program
 
                 while (content.Length > 0)
                 {
-                    int splitIndex = embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int tokencount);
+                    int splitIndex = embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int _);
                     chunks.Add(new Chunk { Content = content[..splitIndex] });
 
                     if (splitIndex == content.Length)
@@ -262,6 +282,9 @@ partial class Program
             #endregion
 
             #region Embedding
+
+            if (noEmbeddingsOptionValue == true)
+                return;
 
             EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
@@ -350,7 +373,7 @@ partial class Program
             else
             {
                 const string sqlDumpQuery =
-                    """USE galaxypedia; SELECT page_namespace, page_title \"page_name\", old_text \"content\" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = \"tt:\" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0 into outfile '/tmp/galaxypedia.csv' FIELDS TERMINATED BY ',' ENCLOSED BY '\"' LINES TERMINATED BY '\n';""";
+                    """USE galaxypedia; SELECT page_namespace, page_title "page_name", old_text "content" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = "tt:" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0 into outfile '/tmp/galaxypedia.csv' FIELDS TERMINATED BY ',' ENCLOSED BY '"' LINES TERMINATED BY '\n';""";
                 using Process? process = Process.Start(new ProcessStartInfo
                 {
                     FileName = "mysql",
