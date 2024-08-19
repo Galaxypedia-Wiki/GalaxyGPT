@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
 using OpenAI.Embeddings;
+using ShellProgressBar;
 
 namespace dataset_assistant;
 
@@ -131,7 +132,7 @@ partial class Program
         {
             #region Option Values
 
-            string? datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory);
+            string datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory)!;
             bool? cleanDirOptionValue = handler.ParseResult.GetValueForOption(cleanDirOption);
             bool? noEmbeddingsOptionValue = handler.ParseResult.GetValueForOption(noEmbeddingsOption);
             bool? compressOldDatasetsOptionValue = handler.ParseResult.GetValueForOption(compressOldDatasetsOption);
@@ -142,10 +143,13 @@ partial class Program
 
             #endregion
 
+            using var globalProgressBar = new ProgressBar(7, "Validating Directories");
+
             #region Directory Validation
 
-            if (!Directory.Exists(datasetDirectoryValue))
-                throw new InvalidOperationException("The dataset directory does not exist");
+            datasetDirectoryValue = Path.GetFullPath(datasetDirectoryValue);
+
+            Directory.CreateDirectory(datasetDirectoryValue);
 
             string[] existingDatasets = Directory.GetDirectories(datasetDirectoryValue, "dataset-v*");
 
@@ -172,17 +176,18 @@ partial class Program
 
             #region Dependencies
 
-            Console.WriteLine("Setting up dependencies");
-            await using var db = new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue));
+            globalProgressBar.Tick("Resolving Dependencies");
+            await using var db = new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue, "vectors.db"));
             var embeddingsTokenizer = TiktokenTokenizer.CreateForModel(embeddingsModelOptionValue);
             OpenAIClient openAiClient = new(openAiApiKeyOptionValue ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new InvalidOperationException());
 
-            await db.Database.EnsureDeletedAsync();
             await db.Database.MigrateAsync();
 
             #endregion
 
             #region CSV Reading
+
+            globalProgressBar.Tick("Reading Database Dump");
 
             string csvData = await File.ReadAllTextAsync(dumpPathOptionValue);
             csvData = csvData.Replace("\\\n", "\n");
@@ -204,6 +209,9 @@ partial class Program
 
             await csv.ReadAsync();
             csv.ReadHeader();
+
+            int totalRows = csv.GetRecords<object>().Count();
+            using ChildProgressBar? csvReaderProgress = globalProgressBar.Spawn(totalRows, "Reading Database Dump");
 
             #endregion
 
@@ -245,6 +253,7 @@ partial class Program
                 };
 
                 db.Add(page);
+                csvReaderProgress.Tick();
             }
 
             await db.SaveChangesAsync();
@@ -255,7 +264,10 @@ partial class Program
 
             const int maxtokens = 8192;
 
-            Console.WriteLine("Chunking pages");
+            globalProgressBar.Tick("Chunking Pages");
+
+            using ChildProgressBar? chunkingProgressBar = globalProgressBar.Spawn(db.Pages.Count(), "Chunking Pages");
+
             foreach (Page page in db.Pages)
             {
                 if (page.Tokens <= maxtokens) continue;
@@ -275,6 +287,7 @@ partial class Program
                 }
 
                 page.Chunks = chunks;
+                chunkingProgressBar.Tick();
             }
 
             await db.SaveChangesAsync();
@@ -285,6 +298,9 @@ partial class Program
 
             if (noEmbeddingsOptionValue == true)
                 return;
+
+            globalProgressBar.Tick("Generating Embeddings");
+            using ChildProgressBar? embeddingsProgressBar = globalProgressBar.Spawn(db.Pages.Count(), "Generating Embeddings");
 
             EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
@@ -307,11 +323,15 @@ partial class Program
                         chunk.Embeddings = embedding.Value.Vector.ToArray().ToList();
                     }
                 }
+
+                embeddingsProgressBar.Tick();
             }
 
             await db.SaveChangesAsync();
 
             #endregion
+
+            globalProgressBar.Tick("Done");
         });
 
         var legacyDumpCommand = new Option<bool>(
