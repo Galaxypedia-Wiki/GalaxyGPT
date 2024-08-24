@@ -3,21 +3,27 @@
 
 using System.ClientModel;
 using System.CommandLine;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
 using galaxygpt.Database;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
 using OpenAI.Embeddings;
+using ShellProgressBar;
 
 namespace dataset_assistant;
 
 partial class Program
 {
+    #region Regex
+
     // Gallery tag regex
     [GeneratedRegex(@"(\|image.?=.?)?<gallery.*?>.*?<\/gallery>\\?\n?", RegexOptions.Singleline)]
     private static partial Regex GalleryTagRegex();
@@ -54,13 +60,16 @@ partial class Program
     [GeneratedRegex(@"\s+")]
     private static partial Regex ExtraWhitespaceRegex();
 
+    #endregion
+
     private static async Task<int> Main(string[] args)
     {
         #region Options
 
         var datasetDirectory = new Option<string>(
             ["--directory", "-d"],
-            "The directory that stores the datasets"
+            getDefaultValue: () => ".",
+            "The directory that stores the dataset folders (i.e. working directory)"
         )
         {
             IsRequired = true
@@ -68,17 +77,12 @@ partial class Program
 
         var cleanDirOption = new Option<bool>(
             ["--cleanDir", "-c"],
-            "Clean the output directory before writing the dataset"
+            "If a dataset with the same name already exists, delete it before proceeding"
         );
 
         var noEmbeddingsOption = new Option<bool>(
             ["--noEmbeddings", "-n"],
-            "Do not include embeddings in the dataset"
-        );
-
-        var dumpDatabaseOption = new Option<bool>(
-            ["--dumpDatabase", "-dd"],
-            "Dump the database to the output directory"
+            "Do not generate embeddings for the dataset. Useful for debugging without incurring API costs"
         );
 
         var compressOldDatasetsOption = new Option<bool>(
@@ -88,15 +92,12 @@ partial class Program
 
         var datasetNameOption = new Option<string>(
             ["--datasetName", "-N"],
-            "The name of the dataset"
-        )
-        {
-            IsRequired = true
-        };
+            "The name of the dataset. Defaults to dataset-v<n> where <n> is an increment of the latest dataset in the directory"
+        );
 
         var dumpPathOption = new Option<string>(
             ["--dbDumpPath", "-D"],
-            "The path to the database dump"
+            "The path to the database dump file. This file should be a csv file"
         )
         {
             IsRequired = true
@@ -120,7 +121,6 @@ partial class Program
             datasetDirectory,
             cleanDirOption,
             noEmbeddingsOption,
-            dumpDatabaseOption,
             compressOldDatasetsOption,
             datasetNameOption,
             dumpPathOption,
@@ -132,10 +132,9 @@ partial class Program
         {
             #region Option Values
 
-            string? datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory);
+            string datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory)!;
             bool? cleanDirOptionValue = handler.ParseResult.GetValueForOption(cleanDirOption);
             bool? noEmbeddingsOptionValue = handler.ParseResult.GetValueForOption(noEmbeddingsOption);
-            bool? dumpDatabaseOptionValue = handler.ParseResult.GetValueForOption(dumpDatabaseOption);
             bool? compressOldDatasetsOptionValue = handler.ParseResult.GetValueForOption(compressOldDatasetsOption);
             string? datasetNameOptionValue = handler.ParseResult.GetValueForOption(datasetNameOption);
             string dumpPathOptionValue = handler.ParseResult.GetValueForOption(dumpPathOption)!;
@@ -144,19 +143,51 @@ partial class Program
 
             #endregion
 
+            using var globalProgressBar = new ProgressBar(7, "Validating Directories");
+
+            #region Directory Validation
+
+            datasetDirectoryValue = Path.GetFullPath(datasetDirectoryValue);
+
+            Directory.CreateDirectory(datasetDirectoryValue);
+
+            string[] existingDatasets = Directory.GetDirectories(datasetDirectoryValue, "dataset-v*");
+
+            datasetNameOptionValue ??= existingDatasets.Length == 0
+                ? "dataset-v1"
+                : $"dataset-v{existingDatasets.Length + 2}";
+
+            if (cleanDirOptionValue == true && Directory.Exists(Path.Combine(datasetDirectoryValue, datasetNameOptionValue)))
+                Directory.Delete(Path.Combine(datasetDirectoryValue, datasetNameOptionValue), true);
+
+            if (compressOldDatasetsOptionValue == true)
+            {
+                foreach (string dataset in existingDatasets)
+                {
+                    string zipPath = Path.Combine(datasetDirectoryValue, $"{Path.GetFileName(dataset)}.zip");
+                    ZipFile.CreateFromDirectory(dataset, zipPath);
+                    Directory.Delete(dataset, true);
+                }
+            }
+
+            Directory.CreateDirectory(Path.Combine(datasetDirectoryValue, datasetNameOptionValue));
+
+            #endregion
+
             #region Dependencies
 
-            Console.WriteLine("Setting up dependencies");
-            await using var db = new VectorDb();
+            globalProgressBar.Tick("Resolving Dependencies");
+            await using var db = new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue, "vectors.db"));
             var embeddingsTokenizer = TiktokenTokenizer.CreateForModel(embeddingsModelOptionValue);
             OpenAIClient openAiClient = new(openAiApiKeyOptionValue ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new InvalidOperationException());
 
-            await db.Database.EnsureDeletedAsync();
             await db.Database.MigrateAsync();
 
             #endregion
 
             #region CSV Reading
+
+            globalProgressBar.Tick("Reading Database Dump");
 
             string csvData = await File.ReadAllTextAsync(dumpPathOptionValue);
             csvData = csvData.Replace("\\\n", "\n");
@@ -178,6 +209,9 @@ partial class Program
 
             await csv.ReadAsync();
             csv.ReadHeader();
+
+            int totalRows = csv.GetRecords<object>().Count();
+            using ChildProgressBar? csvReaderProgress = globalProgressBar.Spawn(totalRows, "Reading Database Dump");
 
             #endregion
 
@@ -219,6 +253,7 @@ partial class Program
                 };
 
                 db.Add(page);
+                csvReaderProgress.Tick();
             }
 
             await db.SaveChangesAsync();
@@ -229,7 +264,10 @@ partial class Program
 
             const int maxtokens = 8192;
 
-            Console.WriteLine("Chunking pages");
+            globalProgressBar.Tick("Chunking Pages");
+
+            using ChildProgressBar? chunkingProgressBar = globalProgressBar.Spawn(db.Pages.Count(), "Chunking Pages");
+
             foreach (Page page in db.Pages)
             {
                 if (page.Tokens <= maxtokens) continue;
@@ -239,7 +277,7 @@ partial class Program
 
                 while (content.Length > 0)
                 {
-                    int splitIndex = embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int tokencount);
+                    int splitIndex = embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int _);
                     chunks.Add(new Chunk { Content = content[..splitIndex] });
 
                     if (splitIndex == content.Length)
@@ -249,6 +287,7 @@ partial class Program
                 }
 
                 page.Chunks = chunks;
+                chunkingProgressBar.Tick();
             }
 
             await db.SaveChangesAsync();
@@ -256,6 +295,12 @@ partial class Program
             #endregion
 
             #region Embedding
+
+            if (noEmbeddingsOptionValue == true)
+                return;
+
+            globalProgressBar.Tick("Generating Embeddings");
+            using ChildProgressBar? embeddingsProgressBar = globalProgressBar.Spawn(db.Pages.Count(), "Generating Embeddings");
 
             EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
@@ -278,11 +323,111 @@ partial class Program
                         chunk.Embeddings = embedding.Value.Vector.ToArray().ToList();
                     }
                 }
+
+                embeddingsProgressBar.Tick();
             }
 
             await db.SaveChangesAsync();
 
             #endregion
+
+            globalProgressBar.Tick("Done");
+        });
+
+        var legacyDumpCommand = new Option<bool>(
+            "--legacy",
+            "Use the legacy database dump method. Which is using the mysql command line tool instead of the .NET connector"
+        );
+
+        var dumpCommand = new Command("dump", "Dump the database to the output directory")
+        {
+            legacyDumpCommand
+        };
+        rootCommand.AddCommand(dumpCommand);
+
+        dumpCommand.SetHandler(async handler =>
+        {
+            Console.Write("Enter the database user password: ");
+            string? password = Console.ReadLine();
+
+            if (string.IsNullOrEmpty(password))
+                throw new InvalidOperationException("Password cannot be empty");
+
+            if (!handler.ParseResult.GetValueForOption(legacyDumpCommand))
+            {
+                SqlConnectionStringBuilder builder = new()
+                {
+                    DataSource = "localhost",
+                    InitialCatalog = "galaxypedia",
+                    UserID = "root",
+                    Password = password
+                };
+
+                await using SqlConnection connection = new(builder.ConnectionString);
+                await connection.OpenAsync();
+
+                // Select the page_namespace, page_title, and old_text (content) columns from the page table
+                var command = new SqlCommand(
+                    """SELECT page_namespace, page_title "page_name", old_text "content" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = "tt:" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0""",
+                    connection);
+                await using SqlDataReader reader = await command.ExecuteReaderAsync();
+
+                await using var csvWriter = new CsvWriter(new StreamWriter("dump.csv", false, Encoding.UTF8),
+                    new CsvConfiguration(CultureInfo.InvariantCulture)
+                    {
+                        HasHeaderRecord = true,
+                    });
+
+                // Add the header row
+                csvWriter.WriteField("page_namespace");
+                csvWriter.WriteField("page_title");
+                csvWriter.WriteField("content");
+
+                await csvWriter.WriteRecordsAsync(reader);
+
+                Console.WriteLine("Database dumped to dump.csv");
+
+                reader.Close();
+                await connection.CloseAsync();
+            }
+            else
+            {
+                const string sqlDumpQuery =
+                    """USE galaxypedia; SELECT page_namespace, page_title "page_name", old_text "content" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = "tt:" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0 into outfile '/tmp/galaxypedia.csv' FIELDS TERMINATED BY ',' ENCLOSED BY '"' LINES TERMINATED BY '\n';""";
+                using Process? process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "mysql",
+                    Arguments = $"-u root -p{password} -e {sqlDumpQuery}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = true
+                });
+
+                if (process == null)
+                    throw new InvalidOperationException("Failed to start the mysql process");
+
+                await process.WaitForExitAsync();
+
+                Console.WriteLine("Database dumped to /tmp/galaxypedia.csv");
+
+                File.Move("/tmp/galaxypedia.csv", "dump.csv", true);
+
+                string username = Environment.UserName;
+                using Process? chownProcess = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "chown",
+                    Arguments = $"{username}:{username} dump.csv",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = true
+                });
+
+                if (chownProcess == null)
+                    throw new InvalidOperationException("Failed to start the chown process");
+
+                await chownProcess.WaitForExitAsync();
+                Console.WriteLine("Done");
+            }
         });
 
         return await rootCommand.InvokeAsync(args);
