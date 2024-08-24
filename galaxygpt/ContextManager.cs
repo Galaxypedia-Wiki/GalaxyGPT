@@ -24,7 +24,7 @@ public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromK
     /// <remarks>
     /// Honestly, I tried to avoid this, but considering we'll be doing cosine similarity on everything anyway, it's better to load everything into memory.
     /// </remarks>
-    private List<Page> _pages = db.Pages.Include(chunk => chunk.Chunks).ToList();
+    private readonly List<Page> _pages = db.Pages.Include(chunk => chunk.Chunks).ToList();
 
     public async Task<(string, int)> FetchContext(string question, int? maxLength = null)
     {
@@ -40,7 +40,7 @@ public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromK
 
         var pageEmbeddings = new List<(Page page, float[] embeddings, int chunkId, float distance)>();
 
-        foreach (Page page in db.Pages.Include(chunk => chunk.Chunks))
+        foreach (Page page in _pages)
         {
             if (page.Chunks == null || page.Chunks.Count == 0)
             {
