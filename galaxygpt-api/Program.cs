@@ -58,7 +58,6 @@ public class Program
 #endif
             o.TracesSampleRate = 1.0;
             o.ProfilesSampleRate = 1.0;
-            o.AddIntegration(new ProfilingIntegration());
         });
 
         #region GalaxyGPT Services
@@ -84,19 +83,19 @@ public class Program
         IVersionedEndpointRouteBuilder adcsApi = app.NewVersionedApi("adcs");
 
         app.UseHttpsRedirection();
-
         app.UseExceptionHandler(exceptionHandlerApp =>
             exceptionHandlerApp.Run(async context => await Results.Problem().ExecuteAsync(context)));
-
-        #region API
-        RouteGroupBuilder v1 = versionedApi.MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
 
         var galaxyGpt = app.Services.GetRequiredService<AiClient>();
         var contextManager = app.Services.GetRequiredService<ContextManager>();
 
+        #region API
+        RouteGroupBuilder v1 = versionedApi.MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
+
+
         v1.MapPost("ask", async (AskPayload askPayload) =>
         {
-            if (string.IsNullOrEmpty(askPayload.Prompt))
+            if (string.IsNullOrWhiteSpace(askPayload.Prompt))
                 return Results.BadRequest("The question cannot be empty.");
 
             (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
