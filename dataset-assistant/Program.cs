@@ -331,6 +331,19 @@ partial class Program
 
             #endregion
 
+            #region Add Metadata
+
+            db.Metadata.Add(new Metadata
+            {
+                DatasetName = datasetNameOptionValue,
+                CreatedAt = DateTime.UtcNow,
+                ChunkMaxSize = maxtokens
+            });
+
+            await db.SaveChangesAsync();
+
+            #endregion
+
             globalProgressBar.Tick("Done");
         });
 

@@ -4,7 +4,12 @@
 using System.Reflection;
 using Asp.Versioning.Builder;
 using galaxygpt;
+using galaxygpt.Database;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
+using Microsoft.ML.Tokenizers;
+using OpenAI;
+using Sentry.Profiling;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace galaxygpt_api;
@@ -30,10 +35,49 @@ public class Program
 
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
         builder.Services.AddSwaggerGen(options => options.OperationFilter<SwaggerDefaultValues>());
-
         builder.Services.AddMemoryCache();
 
-        builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+        #region Configuration
+
+        IConfigurationRoot configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddEnvironmentVariables()
+            .AddUserSecrets<Program>()
+            .Build();
+
+        builder.Configuration.Sources.Clear();
+        builder.Configuration.AddConfiguration(configuration);
+
+        #endregion
+
+        builder.WebHost.UseSentry(o =>
+        {
+            o.Dsn = configuration["SENTRY_DSN"] ?? "https://1df72bed08400836796f15c03748d195@o4507833886834688.ingest.us.sentry.io/4507833934544896";
+#if DEBUG
+            o.Debug = true;
+#endif
+            o.TracesSampleRate = 1.0;
+            o.ProfilesSampleRate = 1.0;
+            o.AddIntegration(new ProfilingIntegration());
+        });
+
+        #region GalaxyGPT Services
+
+        var openAiClient = new OpenAIClient(configuration["OPENAI_API_KEY"] ?? throw new InvalidOperationException());
+        string gptModel = configuration["GPT_MODEL"] ?? "gpt-4o-mini";
+        string textEmbeddingModel = configuration["TEXT_EMBEDDING_MODEL"] ?? "text-embedding-3-small";
+        string moderationModel = configuration["MODERATION_MODEL"] ?? "text-moderation-stable";
+
+        builder.Services.AddSingleton(new VectorDb());
+        builder.Services.AddSingleton(openAiClient.GetChatClient(gptModel));
+        builder.Services.AddSingleton(openAiClient.GetEmbeddingClient(textEmbeddingModel));
+        builder.Services.AddSingleton(openAiClient.GetModerationClient(moderationModel));
+        builder.Services.AddKeyedSingleton("gptTokenizer", TiktokenTokenizer.CreateForModel("gpt-4o-mini"));
+        builder.Services.AddKeyedSingleton("embeddingsTokenizer", TiktokenTokenizer.CreateForModel("text-embedding-3-small"));
+        builder.Services.AddSingleton<ContextManager>();
+        builder.Services.AddSingleton<AiClient>();
+
+        #endregion
 
         WebApplication app = builder.Build();
         IVersionedEndpointRouteBuilder versionedApi = app.NewVersionedApi("galaxygpt");
@@ -47,13 +91,16 @@ public class Program
         #region API
         RouteGroupBuilder v1 = versionedApi.MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
 
+        var galaxyGpt = app.Services.GetRequiredService<AiClient>();
+        var contextManager = app.Services.GetRequiredService<ContextManager>();
+
         v1.MapPost("ask", async (AskPayload askPayload) =>
         {
             if (string.IsNullOrEmpty(askPayload.Prompt))
                 return Results.BadRequest("The question cannot be empty.");
 
-            (string, int) context = await GalaxyGpt.FetchContext(askPayload.Prompt, "text-embedding-3-small");
-            string answer = await GalaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, askPayload.Model ?? app.Configuration["MODEL"] ?? throw new InvalidOperationException(), 4096, 4096, username: askPayload.Username);
+            (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
+            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, 4096, username: askPayload.Username);
 
             var results = new Dictionary<string, string>
             {
