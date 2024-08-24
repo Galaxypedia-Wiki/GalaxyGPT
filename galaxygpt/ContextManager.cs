@@ -30,7 +30,7 @@ public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromK
     {
         question = question.Trim();
 
-        if (string.IsNullOrEmpty(question))
+        if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
 
         if (!db.Pages.Any())
