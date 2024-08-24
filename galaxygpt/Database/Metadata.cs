@@ -8,17 +8,17 @@ public class Metadata
     public int Id { get; init; }
 
     /// <summary>
-    /// The name of the dataset (typically something like "dataset-v1")
+    ///     The name of the dataset (typically something like "dataset-v1")
     /// </summary>
     public required string DatasetName { get; init; }
 
     /// <summary>
-    /// The date and time the dataset was created at. Use UTC time.
+    ///     The date and time the dataset was created at. Use UTC time.
     /// </summary>
     public required DateTime CreatedAt { get; init; }
 
     /// <summary>
-    /// The maximum size of each chunk
+    ///     The maximum size of each chunk
     /// </summary>
     public required int ChunkMaxSize { get; init; }
 }

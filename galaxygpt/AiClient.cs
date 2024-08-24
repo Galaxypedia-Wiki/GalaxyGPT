@@ -9,9 +9,13 @@ using OpenAI.Moderations;
 
 namespace galaxygpt;
 
-public class AiClient(ChatClient chatClient, [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer, ModerationClient? moderationClient = null)
+public class AiClient(
+    ChatClient chatClient,
+    [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer,
+    ModerationClient? moderationClient = null)
 {
-    public async Task<string> AnswerQuestion(string question, string context, int maxInputTokens, string? username = null, int? maxOutputTokens = null)
+    public async Task<string> AnswerQuestion(string question, string context, int maxInputTokens,
+        string? username = null, int? maxOutputTokens = null)
     {
         #region Sanitize & Check the question
 
@@ -30,8 +34,13 @@ public class AiClient(ChatClient chatClient, [FromKeyedServices("gptTokenizer")]
 
             if (moderation.Value.Flagged)
                 throw new InvalidOperationException("The question was flagged by the moderation API.");
-        } else
-            Console.WriteLine("Warning: No moderation client was provided. Skipping moderation check. This can be dangerous");
+        }
+        else
+        {
+            Console.WriteLine(
+                "Warning: No moderation client was provided. Skipping moderation check. This can be dangerous");
+        }
+
         #endregion
 
         List<ChatMessage> messages =
@@ -48,12 +57,13 @@ public class AiClient(ChatClient chatClient, [FromKeyedServices("gptTokenizer")]
                                   If the user is not asking a question (e.g. "thank you", "thanks for the help"): Respond to it and ask the user if they have any further questions.
                                   Respond to greetings (e.g. "hi", "hello") with (in this exact order): A greeting, a brief description of yourself, and a question addressed to the user if they have a question or need assistance.
                                   Above all, be polite and helpful to the user. 
-                                  
+
                                   Steps for responding:
                                   First check if the user is asking about a ship (e.g. "what is the deity?", "how much shield does the theia have?"), if so, use the ship's wiki page (supplied in the context) and the statistics from the ship's infobox to answer the question.
                                   If you determine the user is not asking about a ship (e.g. "who is <player>?", "what is <item>?"), do your best to answer the question based on the context provided.
                                   """),
-            new UserChatMessage($"Context:\n{context.Trim()}\n\n---\n\nQuestion: {question}\nUsername: {username ?? "N/A"}")
+            new UserChatMessage(
+                $"Context:\n{context.Trim()}\n\n---\n\nQuestion: {question}\nUsername: {username ?? "N/A"}")
             {
                 ParticipantName = username ?? null
             }
@@ -67,5 +77,4 @@ public class AiClient(ChatClient chatClient, [FromKeyedServices("gptTokenizer")]
 
         return messages[^1].Content[0].Text;
     }
-
 }

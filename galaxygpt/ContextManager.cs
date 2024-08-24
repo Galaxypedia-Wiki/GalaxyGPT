@@ -8,21 +8,25 @@ using galaxygpt.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ML.Tokenizers;
-using OpenAI;
 using OpenAI.Embeddings;
 
 namespace galaxygpt;
 
 /// <summary>
-/// Handles context management
+///     Handles context management
 /// </summary>
-public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer, [FromKeyedServices("embeddingsTokenizer")] TiktokenTokenizer embeddingsTokenizer)
+public class ContextManager(
+    VectorDb db,
+    EmbeddingClient embeddingClient,
+    [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer,
+    [FromKeyedServices("embeddingsTokenizer")] TiktokenTokenizer embeddingsTokenizer)
 {
     /// <summary>
-    /// Load all pages from the database into memory
+    ///     Load all pages from the database into memory
     /// </summary>
     /// <remarks>
-    /// Honestly, I tried to avoid this, but considering we'll be doing cosine similarity on everything anyway, it's better to load everything into memory.
+    ///     Honestly, I tried to avoid this, but considering we'll be doing cosine similarity on everything anyway, it's better
+    ///     to load everything into memory.
     /// </remarks>
     private readonly List<Page> _pages = db.Pages.Include(chunk => chunk.Chunks).ToList();
 
@@ -41,12 +45,12 @@ public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromK
         var pageEmbeddings = new List<(Page page, float[] embeddings, int chunkId, float distance)>();
 
         foreach (Page page in _pages)
-        {
             if (page.Chunks == null || page.Chunks.Count == 0)
             {
                 if (page.Embeddings == null) continue;
 
-                float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(), page.Embeddings.ToArray());
+                float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(),
+                    page.Embeddings.ToArray());
                 pageEmbeddings.Add((page, page.Embeddings.ToArray(), -1, distance));
             }
             else if (page.Chunks != null)
@@ -55,11 +59,11 @@ public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromK
                 {
                     if (chunk.Embeddings == null) continue;
 
-                    float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(), chunk.Embeddings.ToArray());
+                    float distance = TensorPrimitives.CosineSimilarity(questionEmbeddings.Value.Vector.ToArray(),
+                        chunk.Embeddings.ToArray());
                     pageEmbeddings.Add((page, chunk.Embeddings.ToArray(), chunk.Id, distance));
                 }
             }
-        }
 
         pageEmbeddings.Sort((a, b) => b.distance.CompareTo(a.distance));
 
@@ -69,7 +73,9 @@ public class ContextManager(VectorDb db, EmbeddingClient embeddingClient, [FromK
 
         foreach ((Page page, float[] _, int chunkId, float _) in pageEmbeddings)
         {
-            string content = chunkId == -1|| page.Chunks == null || page.Chunks.Count == 0 ? page.Content : page.Chunks.First(chunk => chunk.Id == chunkId).Content;
+            string content = chunkId == -1 || page.Chunks == null || page.Chunks.Count == 0
+                ? page.Content
+                : page.Chunks.First(chunk => chunk.Id == chunkId).Content;
 
             if (maxLength == null)
             {

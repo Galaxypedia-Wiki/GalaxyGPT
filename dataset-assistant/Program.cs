@@ -20,55 +20,15 @@ using ShellProgressBar;
 
 namespace dataset_assistant;
 
-partial class Program
+internal partial class Program
 {
-    #region Regex
-
-    // Gallery tag regex
-    [GeneratedRegex(@"(\|image.?=.?)?<gallery.*?>.*?<\/gallery>\\?\n?", RegexOptions.Singleline)]
-    private static partial Regex GalleryTagRegex();
-
-    // File link regex
-    [GeneratedRegex(@"\[\[File:.*?\]\]\\?", RegexOptions.Singleline)]
-    private static partial Regex FileLinkRegex();
-
-    // Magic word regex
-    [GeneratedRegex(@"__.*?__", RegexOptions.Singleline)]
-    private static partial Regex MagicWordRegex();
-
-    // HTML comments regex
-    [GeneratedRegex(@"<!--.*?-->\\?\n?", RegexOptions.Singleline)]
-    private static partial Regex HtmlCommentRegex();
-
-    // Span & br regex
-    [GeneratedRegex(@"<span.*?>|<\/span>\\?\n?|<br.*?>\\?\n?", RegexOptions.Singleline)]
-    private static partial Regex SpanBrRegex();
-
-    // Div tags regex
-    [GeneratedRegex(@"<div.*?>|<\/div>\\?\n?", RegexOptions.Singleline)]
-    private static partial Regex DivTagRegex();
-
-    [GeneratedRegex(@"'{3,}(.*?)'{3,}")]
-    private static partial Regex BoldItalicsRegex();
-
-    [GeneratedRegex(@"\[\[([^\[\]\|]+?)\|([^\[\]]+?)\]\]")]
-    private static partial Regex LinkSlicerRegex();
-
-    [GeneratedRegex(@"\[\[(.*?)\]\]")]
-    private static partial Regex ShortenLinksRegex();
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex ExtraWhitespaceRegex();
-
-    #endregion
-
     private static async Task<int> Main(string[] args)
     {
         #region Options
 
         var datasetDirectory = new Option<string>(
             ["--directory", "-d"],
-            getDefaultValue: () => ".",
+            () => ".",
             "The directory that stores the dataset folders (i.e. working directory)"
         )
         {
@@ -105,7 +65,7 @@ partial class Program
 
         var embeddingsModelOption = new Option<string>(
             ["--embeddingsModel", "-e"],
-            getDefaultValue: () => "text-embedding-3-small",
+            () => "text-embedding-3-small",
             "The embeddings model to use"
         );
 
@@ -157,18 +117,17 @@ partial class Program
                 ? "dataset-v1"
                 : $"dataset-v{existingDatasets.Length + 2}";
 
-            if (cleanDirOptionValue == true && Directory.Exists(Path.Combine(datasetDirectoryValue, datasetNameOptionValue)))
+            if (cleanDirOptionValue == true &&
+                Directory.Exists(Path.Combine(datasetDirectoryValue, datasetNameOptionValue)))
                 Directory.Delete(Path.Combine(datasetDirectoryValue, datasetNameOptionValue), true);
 
             if (compressOldDatasetsOptionValue == true)
-            {
                 foreach (string dataset in existingDatasets)
                 {
                     string zipPath = Path.Combine(datasetDirectoryValue, $"{Path.GetFileName(dataset)}.zip");
                     ZipFile.CreateFromDirectory(dataset, zipPath);
                     Directory.Delete(dataset, true);
                 }
-            }
 
             Directory.CreateDirectory(Path.Combine(datasetDirectoryValue, datasetNameOptionValue));
 
@@ -177,9 +136,12 @@ partial class Program
             #region Dependencies
 
             globalProgressBar.Tick("Resolving Dependencies");
-            await using var db = new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue, "vectors.db"));
+            await using var db =
+                new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue, "vectors.db"));
             var embeddingsTokenizer = TiktokenTokenizer.CreateForModel(embeddingsModelOptionValue);
-            OpenAIClient openAiClient = new(openAiApiKeyOptionValue ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? throw new InvalidOperationException());
+            OpenAIClient openAiClient = new(openAiApiKeyOptionValue ??
+                                            Environment.GetEnvironmentVariable("OPENAI_API_KEY") ??
+                                            throw new InvalidOperationException());
 
             await db.Database.MigrateAsync();
 
@@ -249,7 +211,8 @@ partial class Program
                 var page = new Page
                 {
                     Title = title,
-                    Content = content
+                    Content = content,
+                    Tokens = embeddingsTokenizer.CountTokens(content)
                 };
 
                 db.Add(page);
@@ -277,7 +240,8 @@ partial class Program
 
                 while (content.Length > 0)
                 {
-                    int splitIndex = embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int _);
+                    int splitIndex =
+                        embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int _);
                     chunks.Add(new Chunk { Content = content[..splitIndex] });
 
                     if (splitIndex == content.Length)
@@ -300,7 +264,8 @@ partial class Program
                 return;
 
             globalProgressBar.Tick("Generating Embeddings");
-            using ChildProgressBar? embeddingsProgressBar = globalProgressBar.Spawn(db.Pages.Count(), "Generating Embeddings");
+            using ChildProgressBar? embeddingsProgressBar =
+                globalProgressBar.Spawn(db.Pages.Count(), "Generating Embeddings");
 
             EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
@@ -319,7 +284,8 @@ partial class Program
                     // Handle the case where the page has chunks
                     foreach (Chunk chunk in page.Chunks)
                     {
-                        ClientResult<Embedding>? embedding = await embeddingsClient.GenerateEmbeddingAsync(chunk.Content);
+                        ClientResult<Embedding>? embedding =
+                            await embeddingsClient.GenerateEmbeddingAsync(chunk.Content);
                         chunk.Embeddings = embedding.Value.Vector.ToArray().ToList();
                     }
                 }
@@ -388,7 +354,7 @@ partial class Program
                 await using var csvWriter = new CsvWriter(new StreamWriter("dump.csv", false, Encoding.UTF8),
                     new CsvConfiguration(CultureInfo.InvariantCulture)
                     {
-                        HasHeaderRecord = true,
+                        HasHeaderRecord = true
                     });
 
                 // Add the header row
@@ -445,4 +411,44 @@ partial class Program
 
         return await rootCommand.InvokeAsync(args);
     }
+
+    #region Regex
+
+    // Gallery tag regex
+    [GeneratedRegex(@"(\|image.?=.?)?<gallery.*?>.*?<\/gallery>\\?\n?", RegexOptions.Singleline)]
+    private static partial Regex GalleryTagRegex();
+
+    // File link regex
+    [GeneratedRegex(@"\[\[File:.*?\]\]\\?", RegexOptions.Singleline)]
+    private static partial Regex FileLinkRegex();
+
+    // Magic word regex
+    [GeneratedRegex(@"__.*?__", RegexOptions.Singleline)]
+    private static partial Regex MagicWordRegex();
+
+    // HTML comments regex
+    [GeneratedRegex(@"<!--.*?-->\\?\n?", RegexOptions.Singleline)]
+    private static partial Regex HtmlCommentRegex();
+
+    // Span & br regex
+    [GeneratedRegex(@"<span.*?>|<\/span>\\?\n?|<br.*?>\\?\n?", RegexOptions.Singleline)]
+    private static partial Regex SpanBrRegex();
+
+    // Div tags regex
+    [GeneratedRegex(@"<div.*?>|<\/div>\\?\n?", RegexOptions.Singleline)]
+    private static partial Regex DivTagRegex();
+
+    [GeneratedRegex(@"'{3,}(.*?)'{3,}")]
+    private static partial Regex BoldItalicsRegex();
+
+    [GeneratedRegex(@"\[\[([^\[\]\|]+?)\|([^\[\]]+?)\]\]")]
+    private static partial Regex LinkSlicerRegex();
+
+    [GeneratedRegex(@"\[\[(.*?)\]\]")]
+    private static partial Regex ShortenLinksRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex ExtraWhitespaceRegex();
+
+    #endregion
 }

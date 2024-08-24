@@ -24,7 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\galaxygpt\galaxygpt.csproj" />
+        <ProjectReference Include="..\galaxygpt\galaxygpt.csproj"/>
     </ItemGroup>
 
 </Project>

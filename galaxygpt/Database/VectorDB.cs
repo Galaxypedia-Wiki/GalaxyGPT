@@ -7,11 +7,17 @@ namespace galaxygpt.Database;
 
 public class VectorDb(string? path = null) : DbContext
 {
+    private readonly string _dbPath = "Data Source=" + (path ??
+                                                        Path.Join(
+                                                            Environment.GetFolderPath(Environment.SpecialFolder
+                                                                .LocalApplicationData), "embeddings.db"));
+
     public DbSet<Page> Pages { get; set; }
     public DbSet<Chunk> Chunks { get; set; }
     public DbSet<Metadata> Metadata { get; set; }
-    private readonly string _dbPath = "Data Source=" + (path ?? Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "embeddings.db"));
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
-        => options.UseSqlite(_dbPath);
+    {
+        options.UseSqlite(_dbPath);
+    }
 }

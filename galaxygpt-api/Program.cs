@@ -21,10 +21,7 @@ public class Program
         builder.Logging.AddConsole();
         builder.Services.AddProblemDetails();
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddApiVersioning(options =>
-        {
-            options.ReportApiVersions = true;
-        }).AddApiExplorer(options =>
+        builder.Services.AddApiVersioning(options => { options.ReportApiVersions = true; }).AddApiExplorer(options =>
         {
             options.GroupNameFormat = "'v'VVV";
             options.SubstituteApiVersionInUrl = true;
@@ -37,7 +34,7 @@ public class Program
         #region Configuration
 
         IConfigurationRoot configuration = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile("appsettings.json", true, true)
             .AddEnvironmentVariables()
             .AddUserSecrets<Program>()
             .Build();
@@ -49,7 +46,8 @@ public class Program
 
         builder.WebHost.UseSentry(o =>
         {
-            o.Dsn = configuration["SENTRY_DSN"] ?? "https://1df72bed08400836796f15c03748d195@o4507833886834688.ingest.us.sentry.io/4507833934544896";
+            o.Dsn = configuration["SENTRY_DSN"] ??
+                    "https://1df72bed08400836796f15c03748d195@o4507833886834688.ingest.us.sentry.io/4507833934544896";
 #if DEBUG
             o.Debug = true;
 #endif
@@ -96,13 +94,13 @@ public class Program
                 return Results.BadRequest("The question cannot be empty.");
 
             (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
-            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, 4096, username: askPayload.Username);
+            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, 4096, askPayload.Username);
 
             var results = new Dictionary<string, string>
             {
                 { "answer", answer.Trim() },
                 { "context", context.Item1 },
-                { "version", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty}
+                { "version", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty }
             };
 
             return Results.Json(results);
