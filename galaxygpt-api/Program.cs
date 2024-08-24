@@ -5,11 +5,9 @@ using System.Reflection;
 using Asp.Versioning.Builder;
 using galaxygpt;
 using galaxygpt.Database;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
-using Sentry.Profiling;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace galaxygpt_api;
@@ -20,7 +18,6 @@ public class Program
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
         builder.Logging.AddConsole();
         builder.Services.AddProblemDetails();
         builder.Services.AddEndpointsApiExplorer();
@@ -71,8 +68,8 @@ public class Program
         builder.Services.AddSingleton(openAiClient.GetChatClient(gptModel));
         builder.Services.AddSingleton(openAiClient.GetEmbeddingClient(textEmbeddingModel));
         builder.Services.AddSingleton(openAiClient.GetModerationClient(moderationModel));
-        builder.Services.AddKeyedSingleton("gptTokenizer", TiktokenTokenizer.CreateForModel("gpt-4o-mini"));
-        builder.Services.AddKeyedSingleton("embeddingsTokenizer", TiktokenTokenizer.CreateForModel("text-embedding-3-small"));
+        builder.Services.AddKeyedSingleton("gptTokenizer", TiktokenTokenizer.CreateForModel(gptModel));
+        builder.Services.AddKeyedSingleton("embeddingsTokenizer", TiktokenTokenizer.CreateForModel(textEmbeddingModel));
         builder.Services.AddSingleton<ContextManager>();
         builder.Services.AddSingleton<AiClient>();
 
@@ -90,8 +87,8 @@ public class Program
         var contextManager = app.Services.GetRequiredService<ContextManager>();
 
         #region API
-        RouteGroupBuilder v1 = versionedApi.MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
 
+        RouteGroupBuilder v1 = versionedApi.MapGroup("/api/v{version:apiVersion}").HasApiVersion(1.0);
 
         v1.MapPost("ask", async (AskPayload askPayload) =>
         {
