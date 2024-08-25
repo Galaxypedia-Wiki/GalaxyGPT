@@ -5,6 +5,8 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>galaxygpt_api</RootNamespace>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <UserSecretsId>c09e2950-0887-4275-96b0-3d87d90ac6a2</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>
@@ -18,6 +20,12 @@
 
     <ItemGroup>
         <ProjectReference Include="..\galaxygpt\galaxygpt.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>

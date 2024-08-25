@@ -172,14 +172,12 @@ internal partial class Program
             await csv.ReadAsync();
             csv.ReadHeader();
 
-            int totalRows = csv.GetRecords<object>().Count();
-            using ChildProgressBar? csvReaderProgress = globalProgressBar.Spawn(totalRows, "Reading Database Dump");
+            using ChildProgressBar? csvReaderProgress = globalProgressBar.Spawn(1000, "Reading Database Dump");
 
             #endregion
 
             #region CSV Sanitization & Database Insertion
 
-            Console.WriteLine("Sanitizing and inserting data into the database");
             while (await csv.ReadAsync())
             {
                 string? title = csv.GetField<string>("page_title");
@@ -269,10 +267,8 @@ internal partial class Program
 
             EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
-            Console.WriteLine("Generating embeddings");
             foreach (Page page in db.Pages.Include(page => page.Chunks))
             {
-                Console.WriteLine("Embedding page " + page.Title);
                 // Handle the case where the page has no chunks
                 if (page.Chunks == null || page.Chunks.Count == 0)
                 {

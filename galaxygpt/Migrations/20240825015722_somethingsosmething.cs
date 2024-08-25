@@ -1,15 +1,31 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace galaxygpt.Migrations
 {
     /// <inheritdoc />
-    public partial class idk : Migration
+    public partial class somethingsosmething : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "Metadata",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    DatasetName = table.Column<string>(type: "TEXT", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    ChunkMaxSize = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Metadata", x => x.Id);
+                });
+
             migrationBuilder.CreateTable(
                 name: "Pages",
                 columns: table => new
@@ -18,6 +34,7 @@ namespace galaxygpt.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     Title = table.Column<string>(type: "TEXT", nullable: false),
                     Content = table.Column<string>(type: "TEXT", nullable: false),
+                    Tokens = table.Column<int>(type: "INTEGER", nullable: false),
                     Embeddings = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
@@ -56,6 +73,9 @@ namespace galaxygpt.Migrations
         {
             migrationBuilder.DropTable(
                 name: "Chunks");
+
+            migrationBuilder.DropTable(
+                name: "Metadata");
 
             migrationBuilder.DropTable(
                 name: "Pages");

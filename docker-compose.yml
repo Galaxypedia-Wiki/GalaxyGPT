@@ -1,0 +1,8 @@
+﻿services:
+  galaxygpt-api:
+    image: galaxygpt-api
+    network_mode: host
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: galaxygpt-api/Dockerfile

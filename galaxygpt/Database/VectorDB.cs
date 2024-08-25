@@ -10,7 +10,7 @@ public class VectorDb(string? path = null) : DbContext
     private readonly string _dbPath = "Data Source=" + (path ??
                                                         Path.Join(
                                                             Environment.GetFolderPath(Environment.SpecialFolder
-                                                                .LocalApplicationData), "embeddings.db"));
+                                                                .LocalApplicationData), "vectors.db"));
 
     public DbSet<Page> Pages { get; set; }
     public DbSet<Chunk> Chunks { get; set; }

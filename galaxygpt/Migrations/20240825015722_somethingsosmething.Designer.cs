@@ -11,8 +11,8 @@ using galaxygpt.Database;
 namespace galaxygpt.Migrations
 {
     [DbContext(typeof(VectorDb))]
-    [Migration("20240819003856_idk")]
-    partial class idk
+    [Migration("20240825015722_somethingsosmething")]
+    partial class somethingsosmething
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -43,6 +43,27 @@ namespace galaxygpt.Migrations
                     b.ToTable("Chunks");
                 });
 
+            modelBuilder.Entity("galaxygpt.Database.Metadata", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ChunkMaxSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DatasetName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Metadata");
+                });
+
             modelBuilder.Entity("galaxygpt.Database.Page", b =>
                 {
                     b.Property<int>("Id")
@@ -59,6 +80,9 @@ namespace galaxygpt.Migrations
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Tokens")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
