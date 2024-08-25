@@ -94,13 +94,15 @@ public class Program
                 return Results.BadRequest("The question cannot be empty.");
 
             (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
-            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, 4096, askPayload.Username);
+            (string, int) apiResult = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, 4096, askPayload.Username);
 
             var results = new Dictionary<string, string>
             {
-                { "answer", answer.Trim() },
+                { "answer", apiResult.Item1.Trim() },
                 { "context", context.Item1 },
-                { "version", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty }
+                { "version", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty },
+                { "question_tokens", context.Item2.ToString() },
+                { "response_tokens", apiResult.Item2.ToString() }
             };
 
             return Results.Json(results);
