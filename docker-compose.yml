@@ -1,4 +1,4 @@
-﻿services:
+services:
   galaxygpt-api:
     image: galaxygpt-api
     restart: unless-stopped
@@ -27,3 +27,4 @@
 
 volumes:
     qdrant-data:
+        external: true
