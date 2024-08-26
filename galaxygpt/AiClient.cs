@@ -14,7 +14,7 @@ public class AiClient(
     [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer,
     ModerationClient? moderationClient = null)
 {
-    public async Task<string> AnswerQuestion(string question, string context, int maxInputTokens,
+    public async Task<string> AnswerQuestion(string question, string context, int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
         #region Sanitize & Check the question
@@ -24,7 +24,7 @@ public class AiClient(
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
 
-        if (gptTokenizer.CountTokens(question) > maxInputTokens)
+        if (maxInputTokens != null && gptTokenizer.CountTokens(question) > maxInputTokens)
             throw new ArgumentException("The question is too long to be answered.");
 
         // Throw the question into the moderation API

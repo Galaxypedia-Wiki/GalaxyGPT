@@ -7,6 +7,8 @@
         <RootNamespace>galaxygpt_api</RootNamespace>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <UserSecretsId>c09e2950-0887-4275-96b0-3d87d90ac6a2</UserSecretsId>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>1591</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

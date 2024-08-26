@@ -1,21 +1,19 @@
 ﻿// Copyright (c) smallketchup82. Licensed under the GPLv3 Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System.ClientModel;
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
-using galaxygpt.Database;
 using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
 using OpenAI.Embeddings;
+using Qdrant.Client;
+using Qdrant.Client.Grpc;
 using ShellProgressBar;
 
 namespace dataset_assistant;
@@ -25,35 +23,6 @@ internal partial class Program
     private static async Task<int> Main(string[] args)
     {
         #region Options
-
-        var datasetDirectory = new Option<string>(
-            ["--directory", "-d"],
-            () => ".",
-            "The directory that stores the dataset folders (i.e. working directory)"
-        )
-        {
-            IsRequired = true
-        };
-
-        var cleanDirOption = new Option<bool>(
-            ["--cleanDir", "-c"],
-            "If a dataset with the same name already exists, delete it before proceeding"
-        );
-
-        var noEmbeddingsOption = new Option<bool>(
-            ["--noEmbeddings", "-n"],
-            "Do not generate embeddings for the dataset. Useful for debugging without incurring API costs"
-        );
-
-        var compressOldDatasetsOption = new Option<bool>(
-            ["--compressOldDatasets", "-C"],
-            "Compress old datasets in the output directory"
-        );
-
-        var datasetNameOption = new Option<string>(
-            ["--datasetName", "-N"],
-            "The name of the dataset. Defaults to dataset-v<n> where <n> is an increment of the latest dataset in the directory"
-        );
 
         var dumpPathOption = new Option<string>(
             ["--dbDumpPath", "-D"],
@@ -74,15 +43,17 @@ internal partial class Program
             "The OpenAI API key"
         );
 
+        var qdrantUrlOption = new Option<string>(
+            ["--qdrantUrl", "-q"],
+            () => "localhost:6334",
+            "The URL of the Qdrant server"
+        );
+
         #endregion
 
         var rootCommand = new RootCommand("GalaxyGPT Dataset Management Assistant")
         {
-            datasetDirectory,
-            cleanDirOption,
-            noEmbeddingsOption,
-            compressOldDatasetsOption,
-            datasetNameOption,
+            qdrantUrlOption,
             dumpPathOption,
             embeddingsModelOption,
             openAiApiKeyOption
@@ -92,11 +63,7 @@ internal partial class Program
         {
             #region Option Values
 
-            string datasetDirectoryValue = handler.ParseResult.GetValueForOption(datasetDirectory)!;
-            bool? cleanDirOptionValue = handler.ParseResult.GetValueForOption(cleanDirOption);
-            bool? noEmbeddingsOptionValue = handler.ParseResult.GetValueForOption(noEmbeddingsOption);
-            bool? compressOldDatasetsOptionValue = handler.ParseResult.GetValueForOption(compressOldDatasetsOption);
-            string? datasetNameOptionValue = handler.ParseResult.GetValueForOption(datasetNameOption);
+            string qdrantUrlOptionValue = handler.ParseResult.GetValueForOption(qdrantUrlOption)!;
             string dumpPathOptionValue = handler.ParseResult.GetValueForOption(dumpPathOption)!;
             string embeddingsModelOptionValue = handler.ParseResult.GetValueForOption(embeddingsModelOption)!;
             string? openAiApiKeyOptionValue = handler.ParseResult.GetValueForOption(openAiApiKeyOption);
@@ -105,45 +72,24 @@ internal partial class Program
 
             using var globalProgressBar = new ProgressBar(7, "Validating Directories");
 
-            #region Directory Validation
-
-            datasetDirectoryValue = Path.GetFullPath(datasetDirectoryValue);
-
-            Directory.CreateDirectory(datasetDirectoryValue);
-
-            string[] existingDatasets = Directory.GetDirectories(datasetDirectoryValue, "dataset-v*");
-
-            datasetNameOptionValue ??= existingDatasets.Length == 0
-                ? "dataset-v1"
-                : $"dataset-v{existingDatasets.Length + 2}";
-
-            if (cleanDirOptionValue == true &&
-                Directory.Exists(Path.Combine(datasetDirectoryValue, datasetNameOptionValue)))
-                Directory.Delete(Path.Combine(datasetDirectoryValue, datasetNameOptionValue), true);
-
-            if (compressOldDatasetsOptionValue == true)
-                foreach (string dataset in existingDatasets)
-                {
-                    string zipPath = Path.Combine(datasetDirectoryValue, $"{Path.GetFileName(dataset)}.zip");
-                    ZipFile.CreateFromDirectory(dataset, zipPath);
-                    Directory.Delete(dataset, true);
-                }
-
-            Directory.CreateDirectory(Path.Combine(datasetDirectoryValue, datasetNameOptionValue));
-
-            #endregion
-
             #region Dependencies
 
             globalProgressBar.Tick("Resolving Dependencies");
-            await using var db =
-                new VectorDb(Path.Combine(datasetDirectoryValue, datasetNameOptionValue, "vectors.db"));
             var embeddingsTokenizer = TiktokenTokenizer.CreateForModel(embeddingsModelOptionValue);
             OpenAIClient openAiClient = new(openAiApiKeyOptionValue ??
                                             Environment.GetEnvironmentVariable("OPENAI_API_KEY") ??
                                             throw new InvalidOperationException());
 
-            await db.Database.MigrateAsync();
+            string[] qdrantUrlAndPort = qdrantUrlOptionValue.Split(':');
+            var qdrantClient = new QdrantClient(qdrantUrlAndPort[0], qdrantUrlAndPort.Length == 2
+                ? int.Parse(qdrantUrlAndPort[1])
+                : 6334);
+
+            await qdrantClient.RecreateCollectionAsync("galaxypedia", new VectorParams
+            {
+                Distance = Distance.Cosine,
+                Size = 1536
+            });
 
             #endregion
 
@@ -172,9 +118,9 @@ internal partial class Program
             await csv.ReadAsync();
             csv.ReadHeader();
 
-            using ChildProgressBar? csvReaderProgress = globalProgressBar.Spawn(1000, "Reading Database Dump");
-
             #endregion
+
+            List<(string, string)> pages = [];
 
             #region CSV Sanitization & Database Insertion
 
@@ -206,18 +152,8 @@ internal partial class Program
                 if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(content))
                     continue;
 
-                var page = new Page
-                {
-                    Title = title,
-                    Content = content,
-                    Tokens = embeddingsTokenizer.CountTokens(content)
-                };
-
-                db.Add(page);
-                csvReaderProgress.Tick();
+                pages.Add((title, content));
             }
-
-            await db.SaveChangesAsync();
 
             #endregion
 
@@ -226,21 +162,21 @@ internal partial class Program
             const int maxtokens = 8192;
 
             globalProgressBar.Tick("Chunking Pages");
+            using ChildProgressBar? chunkingProgressBar = globalProgressBar.Spawn(pages.Count, "Chunking Pages", new ProgressBarOptions());
 
-            using ChildProgressBar? chunkingProgressBar = globalProgressBar.Spawn(db.Pages.Count(), "Chunking Pages");
+            // Holds the page title, chunk content, and chunk token count
+            var chunksList = new List<(string, string, int)>();
 
-            foreach (Page page in db.Pages)
+            foreach ((string, string) page in pages)
             {
-                if (page.Tokens <= maxtokens) continue;
-
-                List<Chunk> chunks = [];
-                string content = page.Content;
+                List<string> chunks = [];
+                string content = page.Item2;
 
                 while (content.Length > 0)
                 {
                     int splitIndex =
                         embeddingsTokenizer.GetIndexByTokenCount(content, maxtokens, out string? _, out int _);
-                    chunks.Add(new Chunk { Content = content[..splitIndex] });
+                    chunks.Add(content[..splitIndex]);
 
                     if (splitIndex == content.Length)
                         break;
@@ -248,63 +184,51 @@ internal partial class Program
                     content = content[splitIndex..];
                 }
 
-                page.Chunks = chunks;
+                chunksList.AddRange(chunks.Select(chunk => (page.Item1, chunk, embeddingsTokenizer.CountTokens(chunk))));
                 chunkingProgressBar.Tick();
             }
-
-            await db.SaveChangesAsync();
 
             #endregion
 
             #region Embedding
 
-            if (noEmbeddingsOptionValue == true)
-                return;
-
             globalProgressBar.Tick("Generating Embeddings");
             using ChildProgressBar? embeddingsProgressBar =
-                globalProgressBar.Spawn(db.Pages.Count(), "Generating Embeddings");
+                globalProgressBar.Spawn(chunksList.Count, "Generating Embeddings");
 
             EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
-            foreach (Page page in db.Pages.Include(page => page.Chunks))
-            {
-                // Handle the case where the page has no chunks
-                if (page.Chunks == null || page.Chunks.Count == 0)
-                {
-                    ClientResult<Embedding>? embedding = await embeddingsClient.GenerateEmbeddingAsync(page.Content);
-                    page.Embeddings = embedding.Value.Vector.ToArray().ToList();
-                }
-                else
-                {
-                    // Handle the case where the page has chunks
-                    foreach (Chunk chunk in page.Chunks)
-                    {
-                        ClientResult<Embedding>? embedding =
-                            await embeddingsClient.GenerateEmbeddingAsync(chunk.Content);
-                        chunk.Embeddings = embedding.Value.Vector.ToArray().ToList();
-                    }
-                }
+            var embeddedChunks = new List<(string, string, int, float[])>();
 
+            foreach ((string, string, int) chunk in chunksList)
+            {
+                embeddedChunks.Add((chunk.Item1, chunk.Item2, chunk.Item3,
+                    (await embeddingsClient.GenerateEmbeddingAsync(chunk.Item2)).Value.Vector.ToArray()));
                 embeddingsProgressBar.Tick();
             }
 
-            await db.SaveChangesAsync();
-
             #endregion
 
-            #region Add Metadata
-
-            db.Metadata.Add(new Metadata
+            globalProgressBar.Tick("Upserting Points");
+            List<PointStruct> points = [];
+            points.AddRange(embeddedChunks.Select(embeddedChunk => new PointStruct
             {
-                DatasetName = datasetNameOptionValue,
-                CreatedAt = DateTime.UtcNow,
-                ChunkMaxSize = maxtokens
-            });
+                Id = Guid.NewGuid(),
+                Vectors = embeddedChunk.Item4,
+                Payload =
+                {
+                    ["title"] = embeddedChunk.Item1,
+                    ["content"] = embeddedChunk.Item2,
+                    ["tokens"] = embeddedChunk.Item3
+                }
+            }));
 
-            await db.SaveChangesAsync();
+            // Add the points to the Qdrant collection
+            await qdrantClient.UpsertAsync("galaxypedia", points);
 
-            #endregion
+            globalProgressBar.Tick("Taking Snapshot");
+            // Create a snapshot of the collection
+            await qdrantClient.CreateSnapshotAsync("galaxypedia");
 
             globalProgressBar.Tick("Done");
         });

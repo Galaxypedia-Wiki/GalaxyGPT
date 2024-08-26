@@ -1,13 +1,17 @@
 // Copyright (c) smallketchup82. Licensed under the GPLv3 Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Reflection;
+using Asp.Versioning.ApiExplorer;
 using Asp.Versioning.Builder;
 using galaxygpt;
-using galaxygpt.Database;
 using Microsoft.Extensions.Options;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
+using OpenAI.Embeddings;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace galaxygpt_api;
@@ -28,7 +32,11 @@ public class Program
         }).EnableApiVersionBinding();
 
         builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
-        builder.Services.AddSwaggerGen(options => options.OperationFilter<SwaggerDefaultValues>());
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.OperationFilter<SwaggerDefaultValues>();
+            options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
+        });
         builder.Services.AddMemoryCache();
 
         #region Configuration
@@ -57,18 +65,21 @@ public class Program
 
         #region GalaxyGPT Services
 
-        var openAiClient = new OpenAIClient(configuration["OPENAI_API_KEY"] ?? throw new InvalidOperationException());
+        var openAiClient = new OpenAIClient(configuration["OPENAI_API_KEY"] ?? throw new InvalidOperationException("No OpenAI API key was provided."));
         string gptModel = configuration["GPT_MODEL"] ?? "gpt-4o-mini";
         string textEmbeddingModel = configuration["TEXT_EMBEDDING_MODEL"] ?? "text-embedding-3-small";
         string moderationModel = configuration["MODERATION_MODEL"] ?? "text-moderation-stable";
 
-        builder.Services.AddSingleton(new VectorDb());
         builder.Services.AddSingleton(openAiClient.GetChatClient(gptModel));
         builder.Services.AddSingleton(openAiClient.GetEmbeddingClient(textEmbeddingModel));
         builder.Services.AddSingleton(openAiClient.GetModerationClient(moderationModel));
         builder.Services.AddKeyedSingleton("gptTokenizer", TiktokenTokenizer.CreateForModel(gptModel));
         builder.Services.AddKeyedSingleton("embeddingsTokenizer", TiktokenTokenizer.CreateForModel(textEmbeddingModel));
-        builder.Services.AddSingleton<ContextManager>();
+        builder.Services.AddSingleton(provider => new ContextManager(
+            provider.GetRequiredService<EmbeddingClient>(),
+            provider.GetRequiredKeyedService<TiktokenTokenizer>("embeddingsTokenizer"),
+            configuration["QDRANT_URL"]
+        ));
         builder.Services.AddSingleton<AiClient>();
 
         #endregion
@@ -93,18 +104,23 @@ public class Program
             if (string.IsNullOrWhiteSpace(askPayload.Prompt))
                 return Results.BadRequest("The question cannot be empty.");
 
-            (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
-            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, 4096, askPayload.Username);
+            var requestStart = Stopwatch.StartNew();
 
-            var results = new Dictionary<string, string>
+            (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
+            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username);
+
+            requestStart.Stop();
+
+            var results = new AskResponse
             {
-                { "answer", answer.Trim() },
-                { "context", context.Item1 },
-                { "version", Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty }
+                Answer = answer.Trim(),
+                Context = context.Item1,
+                Duration = requestStart.ElapsedMilliseconds.ToString(),
+                Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty
             };
 
             return Results.Json(results);
-        }).WithName("AskQuestion").WithOpenApi();
+        }).WithName("AskQuestion").WithOpenApi().Produces<AskResponse>();
 
         #endregion
 
@@ -120,27 +136,52 @@ public class Program
         #endregion
 
         app.UseSwagger();
-        // if (app.Environment.IsDevelopment())
-        // {
-        //     app.UseSwaggerUI(options =>
-        //     {
-        //         foreach ( ApiVersionDescription description in app.DescribeApiVersions() )
-        //         {
-        //             options.SwaggerEndpoint(
-        //                 $"/swagger/{description.GroupName}/swagger.json",
-        //                 description.GroupName );
-        //         }
-        //     });
-        // }
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwaggerUI(options =>
+            {
+                foreach ( ApiVersionDescription description in app.DescribeApiVersions() )
+                {
+                    options.SwaggerEndpoint(
+                        $"/swagger/{description.GroupName}/swagger.json",
+                        description.GroupName );
+                }
+            });
+        }
         app.Run();
     }
 }
 
-// ReSharper disable once ArrangeTypeModifiers
-// ReSharper disable once ClassNeverInstantiated.Global
-class AskPayload
+public class AskPayload
 {
-    public required string Prompt { get; set; }
-    public string? Model { get; set; }
-    public string? Username { get; set; }
+    /// <summary>
+    /// The question to ask the AI
+    /// </summary>
+    /// <example>What is the deity?</example>
+    [Required]
+    public required string Prompt { get; init; }
+
+    /// <summary>
+    /// The model to use for the request
+    /// </summary>
+    [DefaultValue("gpt-4o-mini")]
+    public string? Model { get; init; } = "gpt-4o-mini";
+
+    /// <summary>
+    /// The username of the user asking the question
+    /// </summary>
+    public string? Username { get; init; }
+
+    /// <summary>
+    /// The maximum amount of tokens to generate
+    /// </summary>
+    public int? MaxLength { get; init; }
+}
+
+public class AskResponse
+{
+    public required string Answer { get; init; }
+    public required string Context { get; init; }
+    public required string Duration { get; init; }
+    public required string Version { get; init; }
 }
