@@ -18,9 +18,38 @@ Open the solution in your favorite C# IDE. I recommend JetBrains Rider, but Visu
 
 There is currently no way to run the project outside of the API, as unit tests are a work in progress.
 
-### Creating a dataset
+The run configurations included within the repo should be helpful in doing the bulk work, you may use those if you wish. But I'll be writing things out manually (the hard way) to be safe.
 
-### Running
+### Preparing the database
+GalaxyGPT uses Qdrant, a Vector Database. You will have to set this up first, before doing anything.
+
+You may use the `Start qdrant standalone` run configuration to do this, or you can edit the `docker-compose.yaml` and uncomment the ports, then run
+```
+docker compose up qdrant
+```
+
+Now that Qdrant is up, you'll want to keep it running in the background.
+### Creating a dataset
+Cd into `dataset-assistant` and run the following:
+```
+dotnet run -- --help
+```
+You'll see a help message detailing the possible configuration values. Fill in your OpenAI api key, the path to the dataset, and (if you've changed the port of Qdrant), the url to qdrant. Then run the resulting command.
+
+dataset-assistant will automatically take your csv and do a bunch of logic to chunk and embed your dataset, then fill everything into Qdrant. It might take a while, but let it be.
+
+### Setting things up for the first run
+Now that Qdrant is fully populated with the embeddings, you're ready to run GalaxyGPT. If you still have Qdrant running, you can stop it (by pressing ctrl+c or just closing the terminal window).
+
+Depending on your preference, you may go into `docker-compose.yaml` and comment out the ports again. You don't have to do this, but considering that Qdrant doesn't really have any authentication by default, I would recommend only exposing the ports as necessary. This way, only GalaxyGPT will be able to access Qdrant.
+
+Once you're done with that, create a `.env` file in the same directory as the `docker-compose.yaml`. Fill it in according to the configuration guide below.
+
+Now, run `docker compose up -d` to start everything in the background. Once that command finishes, run `docker compose logs -f` to investigate the logs and verify successful setup. If anything doesn't work as expected, let us know.
+
+## Running
+GalaxyGPT is meant to be run with docker.
+
 To run the API, run the `galaxygpt-api` project. The API will be available at `http://localhost:3636`.
 
 To ask a question, send a POST request to `http://localhost:3636/api/v1/ask` with the following JSON body:
