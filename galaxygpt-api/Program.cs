@@ -5,6 +5,10 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Asp.Versioning.ApiExplorer;
 using Asp.Versioning.Builder;
 using galaxygpt;
@@ -104,22 +108,27 @@ public class Program
             if (string.IsNullOrWhiteSpace(askPayload.Prompt))
                 return Results.BadRequest("The question cannot be empty.");
 
+            Console.WriteLine("Received question:");
+            Console.WriteLine(JsonSerializer.Serialize(askPayload, new JsonSerializerOptions { WriteIndented = true }));
+
             var requestStart = Stopwatch.StartNew();
 
             (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
-            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username);
+
+            // hash the username to prevent any potential privacy issues
+            string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
+
+            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: username, maxOutputTokens: askPayload.MaxLength);
 
             requestStart.Stop();
 
-            var results = new AskResponse
+            return Results.Json(new AskResponse
             {
                 Answer = answer.Trim(),
                 Context = context.Item1,
                 Duration = requestStart.ElapsedMilliseconds.ToString(),
                 Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty
-            };
-
-            return Results.Json(results);
+            });
         }).WithName("AskQuestion").WithOpenApi().Produces<AskResponse>();
 
         #endregion
