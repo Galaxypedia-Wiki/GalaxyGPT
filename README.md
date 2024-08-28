@@ -64,7 +64,7 @@ The response will be a JSON object with the answer and relevant information.
 Contributions are welcome! Please see the [CONTRIBUTING](CONTRIBUTING.md) file for more information.
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+This project is licensed under the GPLv3 License. See the [LICENSE](LICENSE) file for more information.
 
 The Galaxypedia itself is licensed under the Creative Commons Attribution-ShareAlike 4.0 International License. Please ensure you are compliant with the license when using the dataset.
 
