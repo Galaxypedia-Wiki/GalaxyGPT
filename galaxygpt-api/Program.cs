@@ -118,18 +118,16 @@ public class Program
             // hash the username to prevent any potential privacy issues
             string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
 
-            (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: username, maxOutputTokens: askPayload.MaxLength);
+            string answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: username, maxOutputTokens: askPayload.MaxLength);
 
             requestStart.Stop();
 
             return Results.Json(new AskResponse
             {
-                Answer = answer.Item1.Trim(),
+                Answer = answer.Trim(),
                 Context = context.Item1,
                 Duration = requestStart.ElapsedMilliseconds.ToString(),
-                Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty,
-                QuestionTokens = context.Item2.ToString(),
-                ResponseTokens = answer.Item2.ToString()
+                Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty
             });
         }).WithName("AskQuestion").WithOpenApi().Produces<AskResponse>();
 
@@ -201,10 +199,4 @@ public class AskResponse
     public required string Context { get; init; }
     public required string Duration { get; init; }
     public required string Version { get; init; }
-    
-    [JsonPropertyName("question_tokens")]
-    public required string QuestionTokens { get; init; }
-    
-    [JsonPropertyName("response_tokens")]
-    public required string ResponseTokens { get; init; }
 }
