@@ -1,6 +1,6 @@
 services:
     galaxygpt-api:
-        image: galaxygpt-api
+        image: ghcr.io/galaxypedia-wiki/galaxygpt:main
         restart: unless-stopped
         environment:
             - ASPNETCORE_URLS=http://0.0.0.0:3636

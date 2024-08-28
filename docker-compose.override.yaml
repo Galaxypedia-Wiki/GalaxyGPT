@@ -1,6 +1,7 @@
 name: development
 services:
     galaxygpt-api:
+        pull_policy: build
         env_file: .env.development
         depends_on:
             - qdrant

@@ -2,3 +2,5 @@ name: production
 services:
   galaxygpt-api:
     env_file: .env.production
+    labels:
+        - "com.centurylinklabs.watchtower.enable=true"
