@@ -113,7 +113,7 @@ public class Program
 
             var requestStart = Stopwatch.StartNew();
 
-            (string, int) context = await contextManager.FetchContext(askPayload.Prompt);
+            (string, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
 
             // hash the username to prevent any potential privacy issues
             string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
@@ -185,6 +185,12 @@ public class AskPayload
     /// The maximum amount of tokens to generate
     /// </summary>
     public int? MaxLength { get; init; }
+
+    /// <summary>
+    /// The maximum amount of pages to pull from the embeddings database
+    /// </summary>
+    [DefaultValue(5)]
+    public ulong? MaxContextLength { get; init; } = 5;
 }
 
 public class AskResponse

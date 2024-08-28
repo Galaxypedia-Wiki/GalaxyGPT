@@ -2,5 +2,5 @@ name: production
 services:
   qdrant:
     ports:
-        - "6223:6333"
-        - "6224:6334"
+        - "6333:6333"
+        - "6334:6334"

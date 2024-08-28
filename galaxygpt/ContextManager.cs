@@ -34,7 +34,7 @@ public class ContextManager
             qdrantUrlAndPort.Length > 1 ? int.Parse(qdrantUrlAndPort[1]) : 6334);
     }
 
-    public async Task<(string, int)> FetchContext(string question)
+    public async Task<(string, int)> FetchContext(string question, ulong maxResults = 5)
     {
         if (_qdrantClient == null)
             throw new InvalidOperationException("The Qdrant client is not available.");
@@ -48,7 +48,7 @@ public class ContextManager
         IReadOnlyList<ScoredPoint> searchResults = await _qdrantClient.QueryAsync(
             "galaxypedia",
             questionEmbeddings.Value.Vector.ToArray(),
-            limit: 5,
+            limit: maxResults,
             payloadSelector: true
         );
 
