@@ -1,0 +1,4 @@
+name: production
+services:
+  galaxygpt-api:
+    env_file: .env.production

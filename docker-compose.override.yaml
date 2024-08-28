@@ -1,0 +1,13 @@
+name: development
+services:
+    galaxygpt-api:
+        env_file: .env.development
+        depends_on:
+            - qdrant
+        ports: !override
+            - "6363:3636"
+
+    qdrant:
+        ports:
+            - "6223:6333"
+            - "6224:6334"

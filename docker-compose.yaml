@@ -1,0 +1,29 @@
+services:
+    galaxygpt-api:
+        image: galaxygpt-api
+        restart: unless-stopped
+        environment:
+            - ASPNETCORE_URLS=http://0.0.0.0:3636
+        depends_on:
+            - qdrant
+        ports:
+            - "3636:3636"
+        expose:
+            - "3636"
+        build:
+            context: .
+            dockerfile: galaxygpt-api/Dockerfile
+
+    qdrant:
+        image: qdrant/qdrant:latest
+        restart: unless-stopped
+        expose:
+            - "6333"
+            - "6334"
+            - "6335"
+        volumes:
+            - qdrant-data:/qdrant/storage
+
+volumes:
+    qdrant-data:
+        external: true

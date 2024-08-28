@@ -10,7 +10,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "galaxygpt-tests", "galaxygp
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{49859315-8F83-4385-8569-05554F9D033C}"
 	ProjectSection(SolutionItems) = preProject
-		docker-compose.yml = docker-compose.yml
+		docker-compose.override.yaml = docker-compose.override.yaml
+		docker-compose.prod.yaml = docker-compose.prod.yaml
+		docker-compose.prod.expose.yaml = docker-compose.prod.expose.yaml
 	EndProjectSection
 EndProject
 Global
