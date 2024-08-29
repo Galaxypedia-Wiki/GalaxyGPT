@@ -14,7 +14,7 @@ public class AiClient(
     [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer,
     ModerationClient? moderationClient = null)
 {
-    public async Task<string> AnswerQuestion(string question, string context, int? maxInputTokens = null,
+    public async Task<(string, int)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
         #region Sanitize & Check the question
@@ -75,6 +75,7 @@ public class AiClient(
         });
         messages.Add(new AssistantChatMessage(idk));
 
-        return messages[^1].Content[0].Text;
+        string finalMessage = messages[^1].Content[0].Text;
+        return (finalMessage, gptTokenizer.CountTokens(finalMessage));
     }
 }
