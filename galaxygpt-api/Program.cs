@@ -202,9 +202,15 @@ public class AskResponse
     public required string Duration { get; init; }
     public required string Version { get; init; }
     
+    /// <summary>
+    /// The combined amount of tokens in the system prompt, context, and user's question
+    /// </summary>
     [JsonPropertyName("question_tokens")]
     public required string QuestionTokens { get; init; }
     
+    /// <summary>
+    /// The amount of tokens in chatgpt's response
+    /// </summary>
     [JsonPropertyName("response_tokens")]
     public required string ResponseTokens { get; init; }
 }

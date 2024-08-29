@@ -75,6 +75,7 @@ public class AiClient(
         });
         messages.Add(new AssistantChatMessage(idk));
 
-        return (messages[^1].Content[0].Text, gptTokenizer.CountTokens(messages[^1].Content[0].Text));
+        string finalMessage = messages[^1].Content[0].Text;
+        return (finalMessage, gptTokenizer.CountTokens(finalMessage));
     }
 }
