@@ -69,11 +69,11 @@ public class AiClient(
             }
         ];
 
-        ClientResult<ChatCompletion>? idk = await chatClient.CompleteChatAsync(messages, new ChatCompletionOptions
+        ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(messages, new ChatCompletionOptions
         {
             MaxTokens = maxOutputTokens
         });
-        messages.Add(new AssistantChatMessage(idk));
+        messages.Add(new AssistantChatMessage(clientResult));
 
         string finalMessage = messages[^1].Content[0].Text;
         return (finalMessage, gptTokenizer.CountTokens(finalMessage));
