@@ -4,11 +4,11 @@
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
-using Microsoft.Data.SqlClient;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
 using OpenAI.Embeddings;
@@ -18,7 +18,7 @@ using ShellProgressBar;
 
 namespace dataset_assistant;
 
-internal partial class Program
+public partial class Program
 {
     private static async Task<int> Main(string[] args)
     {
@@ -233,99 +233,56 @@ internal partial class Program
             globalProgressBar.Tick("Done");
         });
 
-        var legacyDumpCommand = new Option<bool>(
-            "--legacy",
-            "Use the legacy database dump method. Which is using the mysql command line tool instead of the .NET connector"
-        );
-
-        var dumpCommand = new Command("dump", "Dump the database to the output directory")
-        {
-            legacyDumpCommand
-        };
+        var dumpCommand = new Command("dump", "Dump the database to the output directory");
         rootCommand.AddCommand(dumpCommand);
 
-        dumpCommand.SetHandler(async handler =>
+        dumpCommand.SetHandler(async _ =>
         {
-            Console.Write("Enter the database user password: ");
-            string? password = Console.ReadLine();
+            await using Stream? stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("dataset_assistant.dump-database.sh");
 
-            if (string.IsNullOrEmpty(password))
-                throw new InvalidOperationException("Password cannot be empty");
+            if (stream == null)
+                throw new InvalidOperationException("Failed to get the dump.sh resource");
 
-            if (!handler.ParseResult.GetValueForOption(legacyDumpCommand))
+            using StreamReader reader = new(stream);
+            string script = await reader.ReadToEndAsync();
+
+            try
             {
-                SqlConnectionStringBuilder builder = new()
+                Console.WriteLine("Extracting the dump script");
+                // Write the script to /tmp/dump.sh
+                await File.WriteAllTextAsync("/tmp/dump.sh", script);
+
+                // Make the script executable
+                using Process? processthing = Process.Start(new ProcessStartInfo
                 {
-                    DataSource = "localhost",
-                    InitialCatalog = "galaxypedia",
-                    UserID = "root",
-                    Password = password
-                };
+                    FileName = "chmod",
+                    Arguments = "+x /tmp/dump.sh",
+                    UseShellExecute = true
+                });
 
-                await using SqlConnection connection = new(builder.ConnectionString);
-                await connection.OpenAsync();
+                if (processthing == null)
+                    throw new InvalidOperationException("Failed to start the chmod process");
 
-                // Select the page_namespace, page_title, and old_text (content) columns from the page table
-                var command = new SqlCommand(
-                    """SELECT page_namespace, page_title "page_name", old_text "content" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = "tt:" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0""",
-                    connection);
-                await using SqlDataReader reader = await command.ExecuteReaderAsync();
+                await processthing.WaitForExitAsync();
 
-                await using var csvWriter = new CsvWriter(new StreamWriter("dump.csv", false, Encoding.UTF8),
-                    new CsvConfiguration(CultureInfo.InvariantCulture)
-                    {
-                        HasHeaderRecord = true
-                    });
-
-                // Add the header row
-                csvWriter.WriteField("page_namespace");
-                csvWriter.WriteField("page_title");
-                csvWriter.WriteField("content");
-
-                await csvWriter.WriteRecordsAsync(reader);
-
-                Console.WriteLine("Database dumped to dump.csv");
-
-                reader.Close();
-                await connection.CloseAsync();
-            }
-            else
-            {
-                const string sqlDumpQuery =
-                    """USE galaxypedia; SELECT page_namespace, page_title "page_name", old_text "content" FROM page INNER JOIN slots on page_latest = slot_revision_id INNER JOIN slot_roles on slot_role_id = role_id AND role_name = 'main' INNER JOIN content on slot_content_id = content_id INNER JOIN text on substring( content_address, 4 ) = old_id AND left( content_address, 3 ) = "tt:" WHERE (page.page_namespace = 0 OR page.page_namespace = 4) AND page.page_is_redirect = 0 into outfile '/tmp/galaxypedia.csv' FIELDS TERMINATED BY ',' ENCLOSED BY '"' LINES TERMINATED BY '\n';""";
+                // run the script
                 using Process? process = Process.Start(new ProcessStartInfo
                 {
-                    FileName = "mysql",
-                    Arguments = $"-u root -p{password} -e {sqlDumpQuery}",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    FileName = "/tmp/dump.sh",
                     UseShellExecute = true
                 });
 
                 if (process == null)
-                    throw new InvalidOperationException("Failed to start the mysql process");
+                    throw new InvalidOperationException("Failed to start the dump.sh process");
 
                 await process.WaitForExitAsync();
 
-                Console.WriteLine("Database dumped to /tmp/galaxypedia.csv");
-
-                File.Move("/tmp/galaxypedia.csv", "dump.csv", true);
-
-                string username = Environment.UserName;
-                using Process? chownProcess = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "chown",
-                    Arguments = $"{username}:{username} dump.csv",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = true
-                });
-
-                if (chownProcess == null)
-                    throw new InvalidOperationException("Failed to start the chown process");
-
-                await chownProcess.WaitForExitAsync();
-                Console.WriteLine("Done");
+                Console.WriteLine("Database dumped successfully");
+            }
+            finally
+            {
+                File.Delete("/tmp/dump.sh");
+                Console.WriteLine("Deleting the dump script");
             }
         });
 
