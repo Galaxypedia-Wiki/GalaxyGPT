@@ -1,20 +1,20 @@
 // Copyright (c) smallketchup82. Licensed under the GPLv3 Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Asp.Versioning.ApiExplorer;
 using Asp.Versioning.Builder;
+using galaxygpt_api.Types.AskQuestion;
+using galaxygpt_api.Types.CompleteChat;
 using galaxygpt;
 using Microsoft.Extensions.Options;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
+using OpenAI.Chat;
 using OpenAI.Embeddings;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -98,6 +98,7 @@ public class Program
 
         var galaxyGpt = app.Services.GetRequiredService<AiClient>();
         var contextManager = app.Services.GetRequiredService<ContextManager>();
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty;
 
         #region API
 
@@ -127,12 +128,72 @@ public class Program
                 Answer = answer.Item1.Trim(),
                 Context = context.Item1,
                 Duration = requestStart.ElapsedMilliseconds.ToString(),
-                Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty,
+                Version = version,
                 QuestionTokens = context.Item2.ToString(),
                 ResponseTokens = answer.Item2.ToString()
             });
         }).WithName("AskQuestion").WithOpenApi().Produces<AskResponse>();
 
+        v1.MapPost("completeChat", async (CompleteChatPayload completeChatPayload) =>
+        {
+            var messages = new List<ChatMessage>();
+            foreach (ChatMessageGeneric chatMessageGeneric in completeChatPayload.Conversation)
+            {
+                switch (chatMessageGeneric.Role)
+                {
+                    case "system":
+                        messages.Add(new SystemChatMessage(chatMessageGeneric.Message));
+                        break;
+
+                    case "assistant":
+                        messages.Add(new AssistantChatMessage(chatMessageGeneric.Message));
+                        break;
+
+                    case "user":
+                        messages.Add(new UserChatMessage(chatMessageGeneric.Message));
+                        break;
+                }
+            }
+
+            List<ChatMessage> newConversation = await galaxyGpt.FollowUpConversation(messages);
+            var newConversationGeneric = new List<ChatMessageGeneric>();
+
+            foreach (ChatMessage chatMessage in newConversation)
+            {
+                switch (chatMessage)
+                {
+                    case SystemChatMessage:
+                        newConversationGeneric.Add(new ChatMessageGeneric
+                        {
+                            Role = "system",
+                            Message = chatMessage.Content.First().Text
+                        });
+                        break;
+
+                    case AssistantChatMessage:
+                        newConversationGeneric.Add(new ChatMessageGeneric
+                        {
+                            Role = "assistant",
+                            Message = chatMessage.Content.First().Text
+                        });
+                        break;
+
+                    case UserChatMessage:
+                        newConversationGeneric.Add(new ChatMessageGeneric
+                        {
+                            Role = "user",
+                            Message = chatMessage.Content.First().Text
+                        });
+                        break;
+                }
+            }
+
+            return Results.Json(new CompleteChatResponse
+            {
+                Conversation = newConversationGeneric,
+                Version = version
+            });
+        }).Produces<CompleteChatResponse>();
         #endregion
 
         #region ADCS
@@ -161,56 +222,4 @@ public class Program
         }
         app.Run();
     }
-}
-
-public class AskPayload
-{
-    /// <summary>
-    /// The question to ask the AI
-    /// </summary>
-    /// <example>What is the deity?</example>
-    [Required]
-    public required string Prompt { get; init; }
-
-    /// <summary>
-    /// The model to use for the request
-    /// </summary>
-    [DefaultValue("gpt-4o-mini")]
-    public string? Model { get; init; } = "gpt-4o-mini";
-
-    /// <summary>
-    /// The username of the user asking the question
-    /// </summary>
-    public string? Username { get; init; }
-
-    /// <summary>
-    /// The maximum amount of tokens to generate
-    /// </summary>
-    public int? MaxLength { get; init; }
-
-    /// <summary>
-    /// The maximum amount of pages to pull from the embeddings database
-    /// </summary>
-    [DefaultValue(5)]
-    public ulong? MaxContextLength { get; init; } = 5;
-}
-
-public class AskResponse
-{
-    public required string Answer { get; init; }
-    public required string Context { get; init; }
-    public required string Duration { get; init; }
-    public required string Version { get; init; }
-    
-    /// <summary>
-    /// The combined amount of tokens in the system prompt, context, and user's question
-    /// </summary>
-    [JsonPropertyName("question_tokens")]
-    public required string QuestionTokens { get; init; }
-    
-    /// <summary>
-    /// The amount of tokens in chatgpt's response
-    /// </summary>
-    [JsonPropertyName("response_tokens")]
-    public required string ResponseTokens { get; init; }
 }
