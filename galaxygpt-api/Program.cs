@@ -72,7 +72,7 @@ public class Program
         var openAiClient = new OpenAIClient(configuration["OPENAI_API_KEY"] ?? throw new InvalidOperationException("No OpenAI API key was provided."));
         string gptModel = configuration["GPT_MODEL"] ?? "gpt-4o-mini";
         string textEmbeddingModel = configuration["TEXT_EMBEDDING_MODEL"] ?? "text-embedding-3-small";
-        string moderationModel = configuration["MODERATION_MODEL"] ?? "text-moderation-stable";
+        string moderationModel = configuration["MODERATION_MODEL"] ?? "omni-moderation-latest";
 
         builder.Services.AddSingleton(openAiClient.GetChatClient(gptModel));
         builder.Services.AddSingleton(openAiClient.GetEmbeddingClient(textEmbeddingModel));
