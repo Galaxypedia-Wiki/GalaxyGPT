@@ -107,12 +107,6 @@ public class Program
                     ? int.Parse(qdrantUrlAndPort[1])
                     : 6334);
 
-                if (!dryrunOptionValue)
-                    await qdrantClient.RecreateCollectionAsync("galaxypedia", new VectorParams
-                    {
-                        Distance = Distance.Cosine,
-                        Size = 1536
-                    });
                 deptask.Value(100);
 
                 #endregion
@@ -139,6 +133,11 @@ public class Program
 
                 if (!dryrunOptionValue)
                 {
+                    await qdrantClient.RecreateCollectionAsync("galaxypedia", new VectorParams
+                    {
+                        Distance = Distance.Cosine,
+                        Size = 1536
+                    });
                     await DatasetCreator.UpsertPointsIntoQdrant(embeddedChunks, qdrantClient);
                     upsertTask?.Value(100);
                 }
