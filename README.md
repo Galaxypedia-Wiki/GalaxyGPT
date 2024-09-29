@@ -10,12 +10,13 @@ GalaxyGPT is an open-source project that aims to create an AI assistant for Gala
 ## Technical Details
 See [Technical Details](https://blog.smallketchup.ca/galaxypedia/2024/08/14/GalaxyGPT.html#:~:text=in%20your%20pocket!-,technical%20details,-This%20is%20the)
 
-## Datasets
-Datasets are database dumps of the Galaxypedia, formatted and stripped away of unnecessary information, providing only what is needed to understand what the contents of a page. These are required for setting up GalaxyGPT. The datasets are compressed using GZIP. You should probably be able to decompress them as usual, but in the case you cannot, use a program like [7Zip](https://www.7-zip.org/) to do so.
+## Datasets & Snapshots
+Datasets are database dumps of the Galaxypedia, formatted and stripped away of unnecessary information, providing only what is needed to understand what the contents of a page. Snapshots are already-embedded versions of datasets. These are required for setting up GalaxyGPT. The datasets and snapshots are compressed using GZIP. You should probably be able to decompress them as usual, but in the case you cannot, use a program like [7Zip](https://www.7-zip.org/) to do so.
 
 **NOTE:** These datasets are provided under the [CC-BY](https://creativecommons.org/licenses/by/4.0/) license. We ask that you do not use these dumps for any ill intentions, and stay true to the Galaxypedia's mission in your usage. Ensure that you provide appropriate credit to the Galaxypedia.
 
-- [galaxypedia-2024-09-22.csv.gz](https://github.com/user-attachments/files/17181542/galaxypedia-2024-09-22.csv.gz)
+- [galaxypedia-2024-09-22.csv.gz](https://github.com/user-attachments/files/17181542/galaxypedia-2024-09-22.csv.gz) | [galaxypedia-8999395654522181-2024-09-29-22-30-42.snapshot.gz](https://github.com/user-attachments/files/17181656/galaxypedia-8999395654522181-2024-09-29-22-30-42.snapshot.gz)
+
 
 ## Setting Up GalaxyGPT
 Open the solution in your favorite C# IDE. I recommend JetBrains Rider, but Visual Studio should work as well. You can also use VSCode with the C# and EditorConfig extensions installed.
