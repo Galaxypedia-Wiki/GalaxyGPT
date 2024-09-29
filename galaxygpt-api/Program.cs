@@ -3,8 +3,6 @@
 
 using System.Diagnostics;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Asp.Versioning.ApiExplorer;
 using Asp.Versioning.Builder;
@@ -116,9 +114,9 @@ public class Program
             (string, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
 
             // hash the username to prevent any potential privacy issues
-            string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
+            // string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
 
-            (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: username, maxOutputTokens: askPayload.MaxLength);
+            (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
 
             requestStart.Stop();
 
