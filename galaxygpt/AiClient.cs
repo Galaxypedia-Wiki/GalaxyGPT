@@ -42,16 +42,17 @@ public class AiClient(
         [
             new SystemChatMessage(OneoffSystemMessage),
             new UserChatMessage(
-                $"Context:\n{context.Trim()}\n\n---\n\nQuestion: {question}\nUsername: {username ?? "N/A"}")
+                $"Information:\n{context.Trim()}\n\n---\n\nQuestion: {question}\nUsername: {username ?? "N/A"}")
             {
                 ParticipantName = username ?? null
             }
         ];
 
-        ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(messages, new ChatCompletionOptions
-        {
-            MaxTokens = maxOutputTokens
-        });
+        ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(messages,
+            new ChatCompletionOptions
+            {
+                MaxTokens = maxOutputTokens
+            });
         messages.Add(new AssistantChatMessage(clientResult));
 
         string finalMessage = messages[^1].Content[0].Text;
@@ -95,7 +96,8 @@ public class AiClient(
         // 3. We can grab the last UserChatMessage and call AnswerQuestion on it. This means the AI will only have context for the new question, but it will be more performant. (The AI will have no prior information to go off of except for its own responses)
         // For now, I'll go with option 3 since we can expand to option 2 if needed.
 
-        UserChatMessage lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
+        UserChatMessage
+            lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
 
         await SanitizeQuestion(lastQuestion, null);
@@ -108,7 +110,7 @@ public class AiClient(
             string context = (await contextManager.FetchContext(lastQuestion)).Item1;
 
             conversation.Remove(lastUserMessage);
-            conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nContext:\n{context}"));
+            conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nInformation:\n{context}"));
 
             // Update lastUserMessage and lastQuestion to point to the new UserChatMessage
             lastUserMessage = conversation.OfType<UserChatMessage>().Last();
