@@ -13,4 +13,13 @@
         <PackageReference Include="Qdrant.Client" Version="1.11.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="System Messages\conversation.txt">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="System Messages\oneoff.txt">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>
