@@ -37,8 +37,10 @@ public partial class DatasetCreator
         await qdrantClient.CreateSnapshotAsync("galaxypedia");
     }
 
-    public static async Task<List<(string title, string content, int tokencount, float[] embeddings)>> GenerateEmbeddedChunks(List<(string title, string content, int tokencount)> chunksList, ProgressTask embeddingTask, OpenAIClient openAiClient,
-        string embeddingsModelOptionValue)
+    public static async Task<List<(string title, string content, int tokencount, float[] embeddings)>>
+        GenerateEmbeddedChunks(List<(string title, string content, int tokencount)> chunksList,
+            OpenAIClient openAiClient,
+            string embeddingsModelOptionValue, ProgressTask? embeddingTask = null)
     {
         EmbeddingClient? embeddingsClient = openAiClient.GetEmbeddingClient(embeddingsModelOptionValue);
 
@@ -56,15 +58,16 @@ public partial class DatasetCreator
                     (await embeddingsClient.GenerateEmbeddingAsync(chunk.Item2,
                         cancellationToken: token)).Value.Vector.ToArray())
             );
-            embeddingTask.Increment(1);
+            embeddingTask?.Increment(1);
         });
 
         return embeddedChunks;
     }
 
-    public static List<(string title, string content, int tokencount)> ChunkPages(List<(string, string)> pages, ProgressTask chunkingTask, TiktokenTokenizer embeddingsTokenizer)
+    public static List<(string title, string content, int tokencount)> ChunkPages(List<(string, string)> pages,
+        TiktokenTokenizer embeddingsTokenizer, ProgressTask? chunkingTask = null)
     {
-        chunkingTask.MaxValue(pages.Count);
+        chunkingTask?.MaxValue(pages.Count);
         // Holds the page title, chunk content, and chunk token count
         var chunksList = new List<(string title, string content, int tokencount)>();
 
@@ -88,7 +91,7 @@ public partial class DatasetCreator
             // It's a little misleading. The chunks belong to the same page. But at the same time, we need the pages to be unique (i.e. in batching)
             // For now, I've decided to append the index to the page title to make it unique if there are multiple chunks
             chunksList.AddRange(chunks.Select((chunk, index) => (page.Item1 + (chunks.Count > 1 ? $" ({index+1})" : ""), chunk, embeddingsTokenizer.CountTokens(chunk))));
-            chunkingTask.Increment(1);
+            chunkingTask?.Increment(1);
         }
 
         return chunksList;

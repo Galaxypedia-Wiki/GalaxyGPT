@@ -121,7 +121,7 @@ public class Program
                 dbdumpTask.Value(100);
                 dbdumpTask.StopTask();
 
-                List<(string title, string content, int tokencount)> chunksList = DatasetCreator.ChunkPages(pages, chunkingTask, embeddingsTokenizer);
+                List<(string title, string content, int tokencount)> chunksList = DatasetCreator.ChunkPages(pages, embeddingsTokenizer, chunkingTask);
 
                 List<(string title, string content, int tokenscount, float[] embeddings)> embeddedChunks;
 
@@ -134,7 +134,7 @@ public class Program
                 {
                     embeddingTask.MaxValue(chunksList.Count);
                     embeddedChunks =
-                        await DatasetCreator.GenerateEmbeddedChunks(chunksList, embeddingTask, openAiClient, embeddingsModelOptionValue);
+                        await DatasetCreator.GenerateEmbeddedChunks(chunksList, openAiClient, embeddingsModelOptionValue, embeddingTask);
                 }
 
                 if (!dryrunOptionValue)

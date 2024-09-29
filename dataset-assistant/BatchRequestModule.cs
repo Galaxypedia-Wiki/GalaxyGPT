@@ -26,7 +26,7 @@ public static class BatchRequestModule
     /// <param name="progressTask">A <see cref="ProgressTask"/> for use in notifying progress. Optional</param>
     /// <returns></returns>
     public static async Task<List<(string title, string content, int tokencount, float[] embedding)>> CreateAndProcessBatchRequest(List<(string title, string content, int tokencount)> chunksList,
-        string embeddingsModel, FileClient fileClient, BatchClient batchClient, ProgressTask? progressTask)
+        string embeddingsModel, FileClient fileClient, BatchClient batchClient, ProgressTask? progressTask = null)
     {
         string batchRequestsString = await CreateBatchRequest(chunksList, embeddingsModel);
 
