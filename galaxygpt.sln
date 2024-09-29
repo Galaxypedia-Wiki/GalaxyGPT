@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		docker-compose.prod.expose.yaml = docker-compose.prod.expose.yaml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ADCS", "ADCS\ADCS.csproj", "{CA427FED-98FF-4DAB-BEA4-CFE0368D6EEC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -37,5 +39,9 @@ Global
 		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{29711175-B0FE-45BF-BEAB-BBA248F7C6DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA427FED-98FF-4DAB-BEA4-CFE0368D6EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA427FED-98FF-4DAB-BEA4-CFE0368D6EEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA427FED-98FF-4DAB-BEA4-CFE0368D6EEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA427FED-98FF-4DAB-BEA4-CFE0368D6EEC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
