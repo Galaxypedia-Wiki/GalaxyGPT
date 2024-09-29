@@ -16,9 +16,9 @@ public class AiClient(
     ModerationClient? moderationClient = null)
 {
     // I'll copy the files to build output for now. But in the future, they should probably be embedded into the exe
-    private static readonly string OneoffSystemMessage = File.ReadAllText("oneoff.txt");
+    private static readonly string OneoffSystemMessage = File.ReadAllText("System Messages/oneoff.txt");
 
-    private static readonly string ConversationSystemMessage = File.ReadAllText("conversation.txt");
+    private static readonly string ConversationSystemMessage = File.ReadAllText("System Messages/conversation.txt");
 
 
     /// <summary>
