@@ -56,16 +56,15 @@ public class Program
 
         #endregion
 
+#if !DEBUG
         builder.WebHost.UseSentry(o =>
         {
             o.Dsn = configuration["SENTRY_DSN"] ??
                     "https://1df72bed08400836796f15c03748d195@o4507833886834688.ingest.us.sentry.io/4507833934544896";
-#if DEBUG
-            o.Debug = true;
-#endif
             o.TracesSampleRate = 1.0;
             o.ProfilesSampleRate = 1.0;
         });
+#endif
 
         #region GalaxyGPT Services
 
