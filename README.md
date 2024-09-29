@@ -15,7 +15,8 @@ Datasets are database dumps of the Galaxypedia, formatted and stripped away of u
 
 **NOTE:** These datasets are provided under the [CC-BY](https://creativecommons.org/licenses/by/4.0/) license. We ask that you do not use these dumps for any ill intentions, and stay true to the Galaxypedia's mission in your usage. Ensure that you provide appropriate credit to the Galaxypedia.
 
-- [galaxypedia-2024-09-22.csv.gz](https://github.com/user-attachments/files/17181542/galaxypedia-2024-09-22.csv.gz) | [galaxypedia-8999395654522181-2024-09-29-22-30-42.snapshot.gz](https://github.com/user-attachments/files/17181656/galaxypedia-8999395654522181-2024-09-29-22-30-42.snapshot.gz)
+Latest dataset & snapshot:  
+[galaxypedia-2024-09-22.csv.gz](https://github.com/user-attachments/files/17181542/galaxypedia-2024-09-22.csv.gz) | [galaxypedia-8999395654522181-2024-09-29-22-30-42.snapshot.gz](https://github.com/user-attachments/files/17181656/galaxypedia-8999395654522181-2024-09-29-22-30-42.snapshot.gz)
 
 
 ## Setting Up GalaxyGPT
