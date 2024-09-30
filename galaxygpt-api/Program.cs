@@ -95,7 +95,7 @@ public class Program
 
         var galaxyGpt = app.Services.GetRequiredService<AiClient>();
         var contextManager = app.Services.GetRequiredService<ContextManager>();
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? string.Empty;
+        const string version = ThisAssembly.Git.Commit;
 
         #region API
 

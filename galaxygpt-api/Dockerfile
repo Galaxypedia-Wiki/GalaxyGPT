@@ -9,6 +9,7 @@ WORKDIR /src
 COPY ["galaxygpt-api/galaxygpt-api.csproj", "galaxygpt-api/"]
 COPY ["galaxygpt/galaxygpt.csproj", "galaxygpt/"]
 RUN dotnet restore "galaxygpt-api/galaxygpt-api.csproj"
+COPY .git .git
 COPY . .
 WORKDIR "/src/galaxygpt-api"
 RUN dotnet build "galaxygpt-api.csproj" -c $BUILD_CONFIGURATION -o /app/build
