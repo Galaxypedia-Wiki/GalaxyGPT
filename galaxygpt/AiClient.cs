@@ -42,7 +42,7 @@ public partial class AiClient(
         await ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
-            username = MyRegex().Match(username).Value;
+            username = AlphaNumericRegex().Match(username).Value;
 
         List<ChatMessage> messages =
         [
@@ -143,5 +143,5 @@ public partial class AiClient(
     }
 
     [GeneratedRegex("[a-zA-Z0-9_-]+")]
-    private static partial Regex MyRegex();
+    private static partial Regex AlphaNumericRegex();
 }
