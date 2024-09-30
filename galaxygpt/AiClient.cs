@@ -107,6 +107,11 @@ public partial class AiClient(
             lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
 
+        foreach (ChatMessage message in conversation)
+        {
+            await ModerateText(message.Content.First().Text, moderationClient);
+        }
+
         SanitizeQuestion(lastQuestion, null);
 
         // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
@@ -127,6 +132,8 @@ public partial class AiClient(
         conversation.Insert(0, new SystemChatMessage(ConversationSystemMessage));
 
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(conversation);
+
+        await ModerateText(clientResult.Value.Content[0].Text, moderationClient);
 
         conversation.Add(new AssistantChatMessage(clientResult));
 
