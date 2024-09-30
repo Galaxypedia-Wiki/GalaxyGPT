@@ -116,19 +116,25 @@ public class Program
             // hash the username to prevent any potential privacy issues
             // string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
 
-            (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
-
-            requestStart.Stop();
-
-            return Results.Json(new AskResponse
+            try
             {
-                Answer = answer.Item1.Trim(),
-                Context = context.Item1,
-                Duration = requestStart.ElapsedMilliseconds.ToString(),
-                Version = version,
-                QuestionTokens = context.Item2.ToString(),
-                ResponseTokens = answer.Item2.ToString()
-            });
+                (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
+                requestStart.Stop();
+
+                return Results.Json(new AskResponse
+                {
+                    Answer = answer.Item1.Trim(),
+                    Context = context.Item1,
+                    Duration = requestStart.ElapsedMilliseconds.ToString(),
+                    Version = version,
+                    QuestionTokens = context.Item2.ToString(),
+                    ResponseTokens = answer.Item2.ToString()
+                });
+            }
+            catch (BonkedException e)
+            {
+                return Results.BadRequest(e.Message);
+            }
         }).WithName("AskQuestion").WithOpenApi().Produces<AskResponse>();
 
         v1.MapPost("completeChat", async (CompleteChatPayload completeChatPayload) =>

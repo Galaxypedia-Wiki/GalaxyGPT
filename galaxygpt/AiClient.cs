@@ -74,7 +74,7 @@ public class AiClient(
             ClientResult<ModerationResult> moderation = await moderationClient.ClassifyTextInputAsync(question);
 
             if (moderation.Value.Flagged)
-                throw new InvalidOperationException("The question was flagged by the moderation API.");
+                throw new BonkedException("The question was flagged by the moderation API.");
         }
         else
         {
