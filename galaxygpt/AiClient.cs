@@ -61,6 +61,7 @@ public partial class AiClient(
         messages.Add(new AssistantChatMessage(clientResult));
 
         string finalMessage = messages[^1].Content[0].Text;
+        await ModerateText(finalMessage, moderationClient);
         return (finalMessage, gptTokenizer.CountTokens(finalMessage));
     }
 
@@ -72,19 +73,21 @@ public partial class AiClient(
         if (maxInputTokens != null && gptTokenizer.CountTokens(question) > maxInputTokens)
             throw new ArgumentException("The question is too long to be answered.");
 
-        // Throw the question into the moderation API
-        if (moderationClient != null)
-        {
-            ClientResult<ModerationResult> moderation = await moderationClient.ClassifyTextInputAsync(question);
+        await ModerateText(question, moderationClient);
+    }
 
-            if (moderation.Value.Flagged)
-                throw new BonkedException("The question was flagged by the moderation API.");
-        }
-        else
+    private static async Task ModerateText(string text, ModerationClient? client)
+    {
+        if (client == null)
         {
             Console.WriteLine(
                 "Warning: No moderation client was provided. Skipping moderation check. This can be dangerous");
+            return;
         }
+        ClientResult<ModerationResult> moderation = await client.ClassifyTextInputAsync(text);
+
+        if (moderation.Value.Flagged)
+            throw new BonkedException("The question was flagged by the moderation API.");
     }
 
     /// <summary>
