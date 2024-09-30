@@ -103,19 +103,19 @@ public partial class AiClient(
         // 3. We can grab the last UserChatMessage and call AnswerQuestion on it. This means the AI will only have context for the new question, but it will be more performant. (The AI will have no prior information to go off of except for its own responses)
         // For now, I'll go with option 3 since we can expand to option 2 if needed.
 
-        UserChatMessage
-            lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
-        string lastQuestion = lastUserMessage.Content.First().Text;
-
         foreach (ChatMessage message in conversation)
         {
             await ModerateText(message.Content.First().Text, moderationClient);
         }
 
+        UserChatMessage
+            lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
+        string lastQuestion = lastUserMessage.Content.First().Text;
+
         SanitizeQuestion(lastQuestion, null);
 
         // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
-        if (!lastQuestion.Contains("Context: "))
+        if (!lastQuestion.Contains("context: ", StringComparison.OrdinalIgnoreCase))
         {
             // The last message does not contain a context. We need to find the context.
 
@@ -125,8 +125,10 @@ public partial class AiClient(
             conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nInformation:\n{context}"));
 
             // Update lastUserMessage and lastQuestion to point to the new UserChatMessage
-            lastUserMessage = conversation.OfType<UserChatMessage>().Last();
-            lastQuestion = lastUserMessage.Content.First().Text;
+            // Wait is this even necessary? We're not using lastUserMessage or lastQuestion after this point.
+            // Okay let's comment this out for now and see if it breaks anything.
+            // lastUserMessage = conversation.OfType<UserChatMessage>().Last();
+            // lastQuestion = lastUserMessage.Content.First().Text;
         }
 
         conversation.Insert(0, new SystemChatMessage(ConversationSystemMessage));
