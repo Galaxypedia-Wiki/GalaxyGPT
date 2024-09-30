@@ -2,6 +2,8 @@ name: production
 services:
   galaxygpt-api:
     env_file: .env.production
+    environment:
+        - ASPNETCORE_ENVIRONMENT=Production
     labels:
         - "com.centurylinklabs.watchtower.enable=true"
   qdrant:
