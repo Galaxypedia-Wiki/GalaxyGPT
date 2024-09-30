@@ -38,7 +38,8 @@ public partial class AiClient(
         string? username = null, int? maxOutputTokens = null)
     {
         question = question.Trim();
-        await SanitizeQuestion(question, maxInputTokens);
+        SanitizeQuestion(question, maxInputTokens);
+        await ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
             username = MyRegex().Match(username).Value;
@@ -65,15 +66,13 @@ public partial class AiClient(
         return (finalMessage, gptTokenizer.CountTokens(finalMessage));
     }
 
-    private async Task SanitizeQuestion(string question, int? maxInputTokens)
+    private void SanitizeQuestion(string question, int? maxInputTokens)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
 
         if (maxInputTokens != null && gptTokenizer.CountTokens(question) > maxInputTokens)
             throw new ArgumentException("The question is too long to be answered.");
-
-        await ModerateText(question, moderationClient);
     }
 
     private static async Task ModerateText(string text, ModerationClient? client)
@@ -108,7 +107,7 @@ public partial class AiClient(
             lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
 
-        await SanitizeQuestion(lastQuestion, null);
+        SanitizeQuestion(lastQuestion, null);
 
         // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
         if (!lastQuestion.Contains("Context: "))
