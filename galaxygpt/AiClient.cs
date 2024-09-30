@@ -3,6 +3,7 @@
 
 using System.ClientModel;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ML.Tokenizers;
 using OpenAI.Chat;
@@ -10,7 +11,7 @@ using OpenAI.Moderations;
 
 namespace galaxygpt;
 
-public class AiClient(
+public partial class AiClient(
     ChatClient chatClient,
     [FromKeyedServices("gptTokenizer")] TiktokenTokenizer gptTokenizer,
     ContextManager contextManager,
@@ -38,6 +39,9 @@ public class AiClient(
     {
         question = question.Trim();
         await SanitizeQuestion(question, maxInputTokens);
+
+        if (!string.IsNullOrWhiteSpace(username))
+            username = MyRegex().Match(username).Value;
 
         List<ChatMessage> messages =
         [
@@ -128,4 +132,7 @@ public class AiClient(
         // was modified or not since all that really matters is the final response from the assistant.
         return conversation;
     }
+
+    [GeneratedRegex("[a-zA-Z0-9_-]+")]
+    private static partial Regex MyRegex();
 }
