@@ -43,7 +43,7 @@ public partial class AiClient(
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
     /// <exception cref="BonkedException">The moderation API flagged the response</exception>
-    public async Task<(string, int)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
+    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
         question = question.Trim();
