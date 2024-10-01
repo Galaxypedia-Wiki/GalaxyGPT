@@ -19,12 +19,12 @@ public partial class AiClient(
 {
     // I'll copy the files to build output for now. But in the future, they should probably be embedded into the exe
     private static readonly string OneoffSystemMessage = File.ReadAllText(Path.Combine(
-        Path.GetDirectoryName(Assembly.GetExecutingAssembly()?.Location) ?? throw new InvalidOperationException(),
+        Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException(),
         "System Messages", "oneoff.txt"));
 
     private static readonly string ConversationSystemMessage = File.ReadAllText(
         Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly()?.Location) ?? throw new InvalidOperationException(),
+            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException(),
             "System Messages", "conversation.txt"));
 
 
