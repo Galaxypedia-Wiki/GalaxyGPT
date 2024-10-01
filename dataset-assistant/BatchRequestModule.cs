@@ -3,6 +3,7 @@
 
 using System.ClientModel;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using OpenAI.Batch;
@@ -25,6 +26,7 @@ public static class BatchRequestModule
     /// <param name="batchClient">The <see cref="BatchClient"/> to use</param>
     /// <param name="progressTask">A <see cref="ProgressTask"/> for use in notifying progress. Optional</param>
     /// <returns></returns>
+    [Experimental("OPENAI001")]
     public static async Task<List<(string title, string content, int tokencount, float[] embedding)>> CreateAndProcessBatchRequest(List<(string title, string content, int tokencount)> chunksList,
         string embeddingsModel, FileClient fileClient, BatchClient batchClient, ProgressTask? progressTask)
     {
@@ -94,6 +96,7 @@ public static class BatchRequestModule
         return embeddedChunksList;
     }
 
+    [Experimental("OPENAI001")]
     private static async Task<string?> WaitForBatchRequestCompletion(BatchClient batchClient, ProgressTask? progressTask,
         string? batchId)
     {
@@ -128,6 +131,7 @@ public static class BatchRequestModule
         return batchOutputFileId;
     }
 
+    [Experimental("OPENAI001")]
     private static async Task<string?> MakeBatchRequest(FileClient fileClient, BatchClient batchClient, string batchRequestsString)
     {
         await using var batchRequestsStream = new MemoryStream(Encoding.UTF8.GetBytes(batchRequestsString));

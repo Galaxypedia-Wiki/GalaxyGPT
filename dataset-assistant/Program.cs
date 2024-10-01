@@ -3,6 +3,7 @@
 
 using System.CommandLine;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.ML.Tokenizers;
 using OpenAI;
@@ -16,6 +17,7 @@ public class Program
 {
     public const int Maxtokens = 8192;
 
+    [Experimental("OPENAI001")]
     private static async Task<int> Main(string[] args)
     {
         #region Options
