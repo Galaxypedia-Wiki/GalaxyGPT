@@ -47,7 +47,7 @@ public class ContextManager
 
         IReadOnlyList<ScoredPoint> searchResults = await _qdrantClient.QueryAsync(
             "galaxypedia",
-            questionEmbeddings.Value.Vector.ToArray(),
+            questionEmbeddings.Value.ToFloats().ToArray(),
             limit: maxResults,
             payloadSelector: true
         );

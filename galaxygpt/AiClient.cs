@@ -66,7 +66,7 @@ public partial class AiClient(
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(messages,
             new ChatCompletionOptions
             {
-                MaxTokens = maxOutputTokens
+                MaxOutputTokenCount = maxOutputTokens
             });
 
         messages.Add(new AssistantChatMessage(clientResult));
@@ -101,7 +101,7 @@ public partial class AiClient(
             return;
         }
 
-        ClientResult<ModerationResult> moderation = await client.ClassifyTextInputAsync(text);
+        ClientResult<ModerationResult> moderation = await client.ClassifyTextAsync(text);
 
         if (moderation.Value.Flagged)
             throw new BonkedException("The question was flagged by the moderation API");
@@ -155,7 +155,7 @@ public partial class AiClient(
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(conversation,
             new ChatCompletionOptions
             {
-                MaxTokens = maxOutputTokens
+                MaxOutputTokenCount = maxOutputTokens
             });
 
         await ModerateText(clientResult.Value.Content[0].Text, moderationClient);
