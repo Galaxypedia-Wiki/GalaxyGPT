@@ -30,6 +30,10 @@ public class ContextManager
         _embeddingsTokenizer = embeddingsTokenizer;
         string[] qdrantUrlAndPort = (qdrantUrl ?? "qdrant").Split(":");
 
+        // TODO: Move to DI (its impossible to test this class because we can't mock QdrantClient)
+        // Okay turns out this is probably going to be a bit more difficult than I thought. It doesn't seem like
+        // QDrantClient can be mocked (it doesnt expose any virtual members). We'd probably have to create a method for
+        // running the query and then mock that method instead of QdrantClient's methods.
         _qdrantClient = new QdrantClient(qdrantUrlAndPort[0],
             qdrantUrlAndPort.Length > 1 ? int.Parse(qdrantUrlAndPort[1]) : 6334);
     }
