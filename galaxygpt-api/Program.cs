@@ -127,7 +127,7 @@ public class Program
                     Context = context.Item1,
                     Duration = requestStart.ElapsedMilliseconds.ToString(),
                     Version = version,
-                    PromptTokens = answer.Item2.ToString()
+                    PromptTokens = answer.Item2.ToString(),
                     ContextTokens = context.Item2.ToString(),
                     QuestionTokens = context.Item3.ToString(),
                     ResponseTokens = answer.Item3.ToString()
