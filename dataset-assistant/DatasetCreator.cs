@@ -18,7 +18,7 @@ namespace dataset_assistant;
 /// <summary>
 /// Class that provides high level methods (chunking, embedding, etc.) for creating datasets
 /// </summary>
-public partial class DatasetCreator
+public static partial class DatasetCreator
 {
     public static async Task UpsertPointsIntoQdrant(List<(string, string, int, float[])> embeddedChunks, QdrantClient qdrantClient)
     {
@@ -54,7 +54,7 @@ public partial class DatasetCreator
                     chunk.content,
                     chunk.tokencount,
                     (await embeddingsClient.GenerateEmbeddingAsync(chunk.Item2,
-                        cancellationToken: token)).Value.Vector.ToArray())
+                        cancellationToken: token)).Value.ToFloats().ToArray())
             );
             embeddingTask.Increment(1);
         });
