@@ -43,7 +43,7 @@ public partial class AiClient(
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
     /// <exception cref="BonkedException">The moderation API flagged the response</exception>
-    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
+    public async Task<(string output, int promptTokenCount, int answerTokenCount)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
         question = question.Trim();
@@ -73,7 +73,7 @@ public partial class AiClient(
 
         string finalMessage = messages[^1].Content[0].Text;
         await ModerateText(finalMessage, moderationClient);
-        return (finalMessage, gptTokenizer.CountTokens(finalMessage));
+        return (finalMessage, gptTokenizer.CountTokens(ConversationSystemMessage), gptTokenizer.CountTokens(finalMessage));
     }
 
     /// <summary>

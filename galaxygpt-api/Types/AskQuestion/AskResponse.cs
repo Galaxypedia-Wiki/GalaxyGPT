@@ -13,7 +13,19 @@ public class AskResponse
     public required string Version { get; init; }
     
     /// <summary>
-    /// The combined amount of tokens in the system prompt, context, and user's question
+    /// The amount of tokens in the system prompt
+    /// </summary>
+    [JsonPropertyName("context_tokens")]
+    public required string PromptTokens { get; init; }
+
+    /// <summary>
+    /// The amount of tokens in only the context
+    /// </summary>
+    [JsonPropertyName("context_tokens")]
+    public required string ContextTokens { get; init; }
+
+    /// <summary>
+    /// The amount of tokens in the user's question
     /// </summary>
     [JsonPropertyName("question_tokens")]
     public required string QuestionTokens { get; init; }
