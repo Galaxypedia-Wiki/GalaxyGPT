@@ -3,6 +3,7 @@
 
 using System.ClientModel;
 using System.ClientModel.Primitives;
+using System.Text.Json;
 using galaxygpt;
 using Microsoft.ML.Tokenizers;
 using Moq;
@@ -15,52 +16,52 @@ namespace galaxygpt_tests;
 
 public class AiClientTests
 {
-    private static Mock<ChatClient> _chatClientMock = new();
-    private static Mock<ClientResult<ChatCompletion>> _chatClientResultMock = new(null!, Mock.Of<PipelineResponse>());
+    private static readonly Mock<ChatClient> ChatClientMock = new();
 
-    private static ChatCompletion _chatCompletion = OpenAIChatModelFactory.ChatCompletion(content:
-    [
-        ChatMessageContentPart.CreateTextPart("goofy ahh uncle productions")
-    ], role: ChatMessageRole.Assistant);
+    private static readonly Mock<ModerationClient> ModerationClientMock = new();
 
-    private static Mock<ModerationClient> _moderationClientMock = new();
+    private static readonly Mock<EmbeddingClient> EmbeddingClientMock = new();
 
-    private static Mock<ClientResult<ModerationResult>> _moderationClientResultMock =
-        new(null!, Mock.Of<PipelineResponse>());
-
-    private static ModerationResult _moderationResult = OpenAIModerationsModelFactory.ModerationResult();
-
-    private static Mock<EmbeddingClient> _embeddingClientMock = new();
-
-    private static Mock<ContextManager> _contextManagerMock = new(_embeddingClientMock.Object,
+    private static readonly Mock<ContextManager> ContextManagerMock = new(EmbeddingClientMock.Object,
         TiktokenTokenizer.CreateForModel("text-embedding-3-small"), null!);
-
-    private AiClient _aiClient;
 
     private static ITestOutputHelper _output = null!;
 
+    private readonly AiClient _aiClient;
+
     public AiClientTests(ITestOutputHelper output)
     {
-        _chatClientResultMock
-            .SetupGet(result => result.Value)
-            .Returns(_chatCompletion);
+        ChatCompletion chatCompletion = OpenAIChatModelFactory.ChatCompletion(content:
+        [
+            ChatMessageContentPart.CreateTextPart("goofy ahh uncle productions")
+        ], role: ChatMessageRole.Assistant);
 
-        _chatClientMock.Setup(client => client.CompleteChatAsync(
+        Mock<ClientResult<ChatCompletion>> chatClientResultMock = new(null!, Mock.Of<PipelineResponse>());
+
+        chatClientResultMock
+            .SetupGet(result => result.Value)
+            .Returns(chatCompletion);
+
+        ChatClientMock.Setup(client => client.CompleteChatAsync(
             It.IsAny<List<ChatMessage>>(),
             It.IsAny<ChatCompletionOptions>(),
             It.IsAny<CancellationToken>()
-        )).Returns(Task.FromResult(_chatClientResultMock.Object));
+        )).Returns(Task.FromResult(chatClientResultMock.Object));
 
-        _moderationClientResultMock
+        ModerationResult moderationResult = OpenAIModerationsModelFactory.ModerationResult();
+
+        Mock<ClientResult<ModerationResult>> moderationClientResultMock = new(null!, Mock.Of<PipelineResponse>());
+
+        moderationClientResultMock
             .SetupGet(result => result.Value)
-            .Returns(_moderationResult);
+            .Returns(moderationResult);
 
-        _moderationClientMock
+        ModerationClientMock
             .Setup(client => client.ClassifyTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(_moderationClientResultMock.Object));
+            .Returns(Task.FromResult(moderationClientResultMock.Object));
 
-        _aiClient = new AiClient(_chatClientMock.Object, TiktokenTokenizer.CreateForModel("text-embedding-3-small"),
-            _contextManagerMock.Object, _moderationClientMock.Object);
+        _aiClient = new AiClient(ChatClientMock.Object, TiktokenTokenizer.CreateForModel("text-embedding-3-small"),
+            ContextManagerMock.Object, ModerationClientMock.Object);
 
         _output = output;
     }
@@ -90,22 +91,22 @@ public class AiClientTests
     [Fact]
     public async void TestModeratesText()
     {
-        _moderationClientMock.Invocations.Clear();
+        ModerationClientMock.Invocations.Clear();
         // Arrange
         const string text = "goofy ahh uncle productions";
 
         // Act
-        await AiClient.ModerateText(text, _moderationClientMock.Object);
+        await AiClient.ModerateText(text, ModerationClientMock.Object);
 
         // Assert
-        _moderationClientMock.Verify(client => client.ClassifyTextAsync(text, It.IsAny<CancellationToken>()),
+        ModerationClientMock.Verify(client => client.ClassifyTextAsync(text, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
     public async void TestModeratesTextWithoutClient()
     {
-        _moderationClientMock.Invocations.Clear();
+        ModerationClientMock.Invocations.Clear();
 
         // Arrange
         const string text = "goofy ahh uncle productions";
@@ -114,7 +115,7 @@ public class AiClientTests
         await AiClient.ModerateText(text, null);
 
         // Assert
-        _moderationClientMock.Verify(client => client.ClassifyTextAsync(text, It.IsAny<CancellationToken>()),
+        ModerationClientMock.Verify(client => client.ClassifyTextAsync(text, It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -122,7 +123,7 @@ public class AiClientTests
     public async void TestModeratedText()
     {
         // We need to set up a custom moderation result & client result for this test since we need to set the flagged property to true
-        ModerationResult? moderationResult = OpenAIModerationsModelFactory.ModerationResult(flagged: true);
+        ModerationResult? moderationResult = OpenAIModerationsModelFactory.ModerationResult(true);
         var moderationClientResult = new Mock<ClientResult<ModerationResult>>(null!, Mock.Of<PipelineResponse>());
         var moderationClientMock = new Mock<ModerationClient>();
 
@@ -132,7 +133,7 @@ public class AiClientTests
 
         moderationClientMock
             .Setup(client => client.ClassifyTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.FromResult(moderationClientResult.Object));
+            .ReturnsAsync(moderationClientResult.Object);
 
         const string text = "goofy ahh uncle productions";
 
@@ -160,5 +161,28 @@ public class AiClientTests
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => _aiClient.AnswerQuestion(question, context, maxInputTokens));
+    }
+
+    [Fact]
+    public async void FollowUpConversationTest()
+    {
+        // Okay this is a *little* confusing. The way this function works is by taking in a list of ChatMessages and adding a new AssistantChatMessage to the end of it.
+        // Because of that, using the same client & mocking setup for AnswerQuestion is fine here. Both should return the same thing in the end
+        List<ChatMessage> conversation =
+        [
+            new UserChatMessage("goofy ahh uncle productions."),
+            new AssistantChatMessage("What the sigma?"),
+            // Use Context: to disable fetching context for now, as it is broken
+            new UserChatMessage("try not to say N word challenge. Context: ")
+        ];
+
+        List<ChatMessage> test = await _aiClient.FollowUpConversation(conversation);
+
+        Assert.NotNull(test);
+        Assert.True(test.OfType<SystemChatMessage>().Count() == 1);
+        Assert.True(test.OfType<UserChatMessage>().Any());
+        Assert.True(test.OfType<AssistantChatMessage>().Any());
+
+        _output.WriteLine(JsonSerializer.Serialize(test, new JsonSerializerOptions { WriteIndented = true }));
     }
 }
