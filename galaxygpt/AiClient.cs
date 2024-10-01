@@ -18,27 +18,36 @@ public partial class AiClient(
     ModerationClient? moderationClient = null)
 {
     // I'll copy the files to build output for now. But in the future, they should probably be embedded into the exe
-    private static readonly string OneoffSystemMessage = File.ReadAllText(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? throw new InvalidOperationException(), "System Messages", "oneoff.txt"));
+    private static readonly string OneoffSystemMessage = File.ReadAllText(Path.Combine(
+        Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? throw new InvalidOperationException(),
+        "System Messages", "oneoff.txt"));
 
-    private static readonly string ConversationSystemMessage = File.ReadAllText(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? throw new InvalidOperationException(), "System Messages", "conversation.txt"));
+    private static readonly string ConversationSystemMessage = File.ReadAllText(
+        Path.Combine(
+            Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? throw new InvalidOperationException(),
+            "System Messages", "conversation.txt"));
 
 
     /// <summary>
-    /// Answers a question based on the provided context.
+    ///     Answers a question based on the provided context
     /// </summary>
-    /// <param name="question"></param>
-    /// <param name="context"></param>
-    /// <param name="maxInputTokens"></param>
-    /// <param name="username"></param>
-    /// <param name="maxOutputTokens"></param>
-    /// <returns></returns>
+    /// <param name="question">The question to answer</param>
+    /// <param name="context">Context to provide the AI to help in answering the question</param>
+    /// <param name="maxInputTokens">
+    ///     The maximum amount of tokens the question can be before it is refused. If left blank, is
+    ///     set to unlimited
+    /// </param>
+    /// <param name="username">Optionally provide a username to associate the request with</param>
+    /// <param name="maxOutputTokens">The maximum amount of tokens to output</param>
+    /// <returns>A tuple containing the output and the token count of the output</returns>
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
+    /// <exception cref="BonkedException">The moderation API flagged the response</exception>
     public async Task<(string, int)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
         question = question.Trim();
-        SanitizeQuestion(question, maxInputTokens);
+        CheckQuestion(question, maxInputTokens);
         await ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
@@ -59,6 +68,7 @@ public partial class AiClient(
             {
                 MaxTokens = maxOutputTokens
             });
+
         messages.Add(new AssistantChatMessage(clientResult));
 
         string finalMessage = messages[^1].Content[0].Text;
@@ -66,7 +76,14 @@ public partial class AiClient(
         return (finalMessage, gptTokenizer.CountTokens(finalMessage));
     }
 
-    private void SanitizeQuestion(string question, int? maxInputTokens)
+    /// <summary>
+    ///     Perform checks on the question to ensure it is valid
+    /// </summary>
+    /// <remarks>Checks if the question is just whitespace, and optionally if it's too long</remarks>
+    /// <param name="question"></param>
+    /// <param name="maxInputTokens"></param>
+    /// <exception cref="ArgumentException"></exception>
+    private void CheckQuestion(string question, int? maxInputTokens)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
@@ -83,18 +100,22 @@ public partial class AiClient(
                 "Warning: No moderation client was provided. Skipping moderation check. This can be dangerous");
             return;
         }
+
         ClientResult<ModerationResult> moderation = await client.ClassifyTextInputAsync(text);
 
         if (moderation.Value.Flagged)
-            throw new BonkedException("The question was flagged by the moderation API.");
+            throw new BonkedException("The question was flagged by the moderation API");
     }
 
     /// <summary>
-    /// Continues a conversation. Will pick the last <see cref="UserChatMessage"/>, grab the context, then call <see cref="AnswerQuestion"/>
+    ///     Continues a conversation. Will pick the last <see cref="UserChatMessage" />, grab the context, then call
+    ///     <see cref="AnswerQuestion" />
     /// </summary>
-    /// <param name="conversation"></param>
-    /// <returns>The new <see cref="ChatMessage"/> List</returns>
-    public async Task<List<ChatMessage>> FollowUpConversation(List<ChatMessage> conversation)
+    /// <param name="conversation">The conversation to use</param>
+    /// <param name="maxOutputTokens"></param>
+    /// <returns>The new <see cref="ChatMessage" /> List</returns>
+    public async Task<List<ChatMessage>> FollowUpConversation(List<ChatMessage> conversation,
+        int? maxOutputTokens = null)
     {
         // The conversation is unlikely to be in the same format as the one in AnswerQuestion. Notably, there will be no Context or Username. Just the raw question.
         // We can go two ways about this:
@@ -104,15 +125,13 @@ public partial class AiClient(
         // For now, I'll go with option 3 since we can expand to option 2 if needed.
 
         foreach (ChatMessage message in conversation)
-        {
             await ModerateText(message.Content.First().Text, moderationClient);
-        }
 
         UserChatMessage
             lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
 
-        SanitizeQuestion(lastQuestion, null);
+        CheckQuestion(lastQuestion, null);
 
         // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
         if (!lastQuestion.Contains("context: ", StringComparison.OrdinalIgnoreCase))
@@ -133,7 +152,11 @@ public partial class AiClient(
 
         conversation.Insert(0, new SystemChatMessage(ConversationSystemMessage));
 
-        ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(conversation);
+        ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(conversation,
+            new ChatCompletionOptions
+            {
+                MaxTokens = maxOutputTokens
+            });
 
         await ModerateText(clientResult.Value.Content[0].Text, moderationClient);
 
