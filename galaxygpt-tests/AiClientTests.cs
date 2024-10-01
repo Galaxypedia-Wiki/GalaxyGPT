@@ -89,6 +89,21 @@ public class AiClientTests
     }
 
     [Fact]
+    public async void TestAnswersQuestionWithZeroMaxOutputTokens()
+    {
+        // Arrange
+        const string question = "What is the meaning of life?";
+        const string context =
+            "The meaning of life is a philosophical question concerning the significance of life or existence in general.";
+        int? maxInputTokens = 100;
+        const string username = "smallketchup82";
+        int? maxOutputTokens = 0;
+
+        // Act
+        await Assert.ThrowsAsync<ArgumentException>(() => _aiClient.AnswerQuestion(question, context, maxInputTokens, username, maxOutputTokens));
+    }
+
+    [Fact]
     public async void TestModeratesText()
     {
         ModerationClientMock.Invocations.Clear();

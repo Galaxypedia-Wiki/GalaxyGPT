@@ -34,11 +34,11 @@ public partial class AiClient(
     /// <param name="question">The question to answer</param>
     /// <param name="context">Context to provide the AI to help in answering the question</param>
     /// <param name="maxInputTokens">
-    ///     The maximum amount of tokens the question can be before it is refused. If left blank, is
+    ///     The maximum amount of tokens the question can contain before it is refused. If left blank, is
     ///     set to unlimited
     /// </param>
     /// <param name="username">Optionally provide a username to associate the request with</param>
-    /// <param name="maxOutputTokens">The maximum amount of tokens to output</param>
+    /// <param name="maxOutputTokens">The maximum amount of tokens to output. This is NOT a hard limit, and can be exceeded.</param>
     /// <returns>A tuple containing the output and the token count of the output</returns>
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
@@ -47,7 +47,7 @@ public partial class AiClient(
         string? username = null, int? maxOutputTokens = null)
     {
         question = question.Trim();
-        CheckQuestion(question, maxInputTokens);
+        CheckQuestion(question, maxInputTokens, maxOutputTokens);
         await ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
@@ -82,14 +82,18 @@ public partial class AiClient(
     /// <remarks>Checks if the question is just whitespace, and optionally if it's too long</remarks>
     /// <param name="question"></param>
     /// <param name="maxInputTokens"></param>
+    /// <param name="maxOutputTokens"></param>
     /// <exception cref="ArgumentException"></exception>
-    private void CheckQuestion(string question, int? maxInputTokens)
+    private void CheckQuestion(string question, int? maxInputTokens, int? maxOutputTokens)
     {
         if (string.IsNullOrWhiteSpace(question))
-            throw new ArgumentException("The question cannot be empty.");
+            throw new ArgumentException("The question cannot be empty");
 
         if (maxInputTokens != null && gptTokenizer.CountTokens(question) > maxInputTokens)
-            throw new ArgumentException("The question is too long to be answered.");
+            throw new ArgumentException("The question is too long to be answered");
+
+        if (maxOutputTokens == 0)
+            throw new ArgumentException("The maximum output token count cannot be 0");
     }
 
     public static async Task ModerateText(string text, ModerationClient? client)
@@ -131,7 +135,7 @@ public partial class AiClient(
             lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
 
-        CheckQuestion(lastQuestion, null);
+        CheckQuestion(lastQuestion, null, null);
 
         // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
         if (!lastQuestion.Contains("context: ", StringComparison.OrdinalIgnoreCase))
