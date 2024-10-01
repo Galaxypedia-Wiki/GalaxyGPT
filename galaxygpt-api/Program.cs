@@ -111,7 +111,7 @@ public class Program
 
             var requestStart = Stopwatch.StartNew();
 
-            (string, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
+            (string, int, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
 
             // hash the username to prevent any potential privacy issues
             // string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
@@ -127,7 +127,8 @@ public class Program
                     Context = context.Item1,
                     Duration = requestStart.ElapsedMilliseconds.ToString(),
                     Version = version,
-                    QuestionTokens = context.Item2.ToString(),
+                    ContextTokens = context.Item2.ToString(),
+                    QuestionTokens = context.Item3.ToString(),
                     ResponseTokens = answer.Item2.ToString()
                 });
             }
