@@ -38,7 +38,7 @@ public class ContextManager
             qdrantUrlAndPort.Length > 1 ? int.Parse(qdrantUrlAndPort[1]) : 6334);
     }
 
-    public async Task<(string, int, int)> FetchContext(string question, ulong maxResults = 5)
+    public async Task<(string context, int contextTokenCount, int questionTokenCount)> FetchContext(string question, ulong maxResults = 5)
     {
         if (_qdrantClient == null)
             throw new InvalidOperationException("The Qdrant client is not available.");

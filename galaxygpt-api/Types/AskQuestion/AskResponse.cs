@@ -19,7 +19,7 @@ public class AskResponse
     public required string PromptTokens { get; init; }
 
     /// <summary>
-    /// The amount of tokens in only the context
+    /// The amount of tokens in the context
     /// </summary>
     [JsonPropertyName("context_tokens")]
     public required string ContextTokens { get; init; }

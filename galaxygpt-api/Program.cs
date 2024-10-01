@@ -111,26 +111,26 @@ public class Program
 
             var requestStart = Stopwatch.StartNew();
 
-            (string, int, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
+            (string context, int contextTokenCount, int questionTokenCount) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
 
             // hash the username to prevent any potential privacy issues
             // string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
 
             try
             {
-                (string, int, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
+                (string output, int promptTokenCount, int responseTokenCount) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
                 requestStart.Stop();
 
                 return Results.Json(new AskResponse
                 {
                     Answer = answer.Item1.Trim(),
-                    Context = context.Item1,
+                    Context = context.context,
                     Duration = requestStart.ElapsedMilliseconds.ToString(),
                     Version = version,
-                    PromptTokens = answer.Item2.ToString(),
-                    ContextTokens = context.Item2.ToString(),
-                    QuestionTokens = context.Item3.ToString(),
-                    ResponseTokens = answer.Item3.ToString()
+                    PromptTokens = answer.promptTokenCount.ToString(),
+                    ContextTokens = context.contextTokenCount.ToString(),
+                    QuestionTokens = context.questionTokenCount.ToString(),
+                    ResponseTokens = answer.responseTokenCount.ToString()
                 });
             }
             catch (BonkedException e)
