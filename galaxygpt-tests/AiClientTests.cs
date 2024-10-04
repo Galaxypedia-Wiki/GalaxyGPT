@@ -34,7 +34,7 @@ public class AiClientTests
         ChatCompletion chatCompletion = OpenAIChatModelFactory.ChatCompletion(content:
         [
             ChatMessageContentPart.CreateTextPart("goofy ahh uncle productions")
-        ], role: ChatMessageRole.Assistant);
+        ], role: ChatMessageRole.Assistant, usage: OpenAIChatModelFactory.ChatTokenUsage(100, 100, 100));
 
         Mock<ClientResult<ChatCompletion>> chatClientResultMock = new(null!, Mock.Of<PipelineResponse>());
 
