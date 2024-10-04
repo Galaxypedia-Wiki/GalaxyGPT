@@ -2,9 +2,6 @@
 GalaxyGPT is an open-source project that aims to create an AI assistant for Galaxy, a ROBLOX space game. GalaxyGPT works by embedding the Galaxypedia's database, then using cosine similarity to find relevant pages for a user's query. The information is then given to ChatGPT to generate a response.
 
 > [!NOTE]
-> This README is a work in progress. At the moment, you're on your own in setting this up. YMMV
-
-> [!NOTE]
 > Also note that this project is still in the early stages of development. We recently migrated from python to c# so there's a lot that is missing.
 
 ## Technical Details
