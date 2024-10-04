@@ -67,7 +67,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void TestAnswersQuestion()
+    public async Task TestAnswersQuestion()
     {
         // Arrange
         const string question = "What is the meaning of life?";
@@ -90,7 +90,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void TestAnswersQuestionWithZeroMaxOutputTokens()
+    public async Task TestAnswersQuestionWithZeroMaxOutputTokens()
     {
         // Arrange
         const string question = "What is the meaning of life?";
@@ -105,7 +105,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void TestModeratesText()
+    public async Task TestModeratesText()
     {
         ModerationClientMock.Invocations.Clear();
         // Arrange
@@ -120,7 +120,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void TestModeratesTextWithoutClient()
+    public async Task TestModeratesTextWithoutClient()
     {
         ModerationClientMock.Invocations.Clear();
 
@@ -136,7 +136,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void TestModeratedText()
+    public async Task TestModeratedText()
     {
         // We need to set up a custom moderation result & client result for this test since we need to set the flagged property to true
         ModerationResult? moderationResult = OpenAIModerationsModelFactory.ModerationResult(true);
@@ -157,7 +157,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void CheckQuestionThrowsArgumentExceptionWhenQuestionIsWhitespace()
+    public async Task CheckQuestionThrowsArgumentExceptionWhenQuestionIsWhitespace()
     {
         // Arrange
         const string question = " ";
@@ -167,7 +167,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void CheckQuestionThrowsArgumentExceptionWhenQuestionIsTooLong()
+    public async Task CheckQuestionThrowsArgumentExceptionWhenQuestionIsTooLong()
     {
         // Arrange
         const string question = "What is the meaning of life?";
@@ -180,7 +180,7 @@ public class AiClientTests
     }
 
     [Fact]
-    public async void FollowUpConversationTest()
+    public async Task FollowUpConversationTest()
     {
         // Okay this is a *little* confusing. The way this function works is by taking in a list of ChatMessages and adding a new AssistantChatMessage to the end of it.
         // Because of that, using the same client & mocking setup for AnswerQuestion is fine here. Both should return the same thing in the end
