@@ -111,26 +111,24 @@ public class Program
 
             var requestStart = Stopwatch.StartNew();
 
-            (string context, int contextTokenCount, int questionTokenCount) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
+            (string, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
 
             // hash the username to prevent any potential privacy issues
             // string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
 
             try
             {
-                (string output, int promptTokenCount, int responseTokenCount) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
+                (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
                 requestStart.Stop();
 
                 return Results.Json(new AskResponse
                 {
                     Answer = answer.Item1.Trim(),
-                    Context = context.context,
+                    Context = context.Item1,
                     Duration = requestStart.ElapsedMilliseconds.ToString(),
                     Version = version,
-                    PromptTokens = answer.promptTokenCount.ToString(),
-                    ContextTokens = context.contextTokenCount.ToString(),
-                    QuestionTokens = context.questionTokenCount.ToString(),
-                    ResponseTokens = answer.responseTokenCount.ToString()
+                    QuestionTokens = context.Item2.ToString(),
+                    ResponseTokens = answer.Item2.ToString()
                 });
             }
             catch (BonkedException e)

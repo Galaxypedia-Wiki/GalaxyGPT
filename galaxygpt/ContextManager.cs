@@ -38,7 +38,7 @@ public class ContextManager
             qdrantUrlAndPort.Length > 1 ? int.Parse(qdrantUrlAndPort[1]) : 6334);
     }
 
-    public async Task<(string context, int contextTokenCount, int questionTokenCount)> FetchContext(string question, ulong maxResults = 5)
+    public async Task<(string, int)> FetchContext(string question, ulong maxResults = 5)
     {
         if (_qdrantClient == null)
             throw new InvalidOperationException("The Qdrant client is not available.");
@@ -63,7 +63,6 @@ public class ContextManager
             context.Append($"Page: {searchResult.Payload["title"].StringValue}\nContent: {searchResult.Payload["content"].StringValue}\n\n###\n\n");
         }
 
-        string contextString = context.ToString();
-        return (contextString, _embeddingsTokenizer.CountTokens(contextString), _embeddingsTokenizer.CountTokens(question));
+        return (context.ToString(), _embeddingsTokenizer.CountTokens(question));
     }
 }
