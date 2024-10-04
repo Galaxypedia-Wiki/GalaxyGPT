@@ -34,7 +34,7 @@ public class AiClientTests
         ChatCompletion chatCompletion = OpenAIChatModelFactory.ChatCompletion(content:
         [
             ChatMessageContentPart.CreateTextPart("goofy ahh uncle productions")
-        ], role: ChatMessageRole.Assistant);
+        ], role: ChatMessageRole.Assistant, usage: OpenAIChatModelFactory.ChatTokenUsage(100, 100, 100));
 
         Mock<ClientResult<ChatCompletion>> chatClientResultMock = new(null!, Mock.Of<PipelineResponse>());
 
@@ -78,13 +78,14 @@ public class AiClientTests
         int? maxOutputTokens = 100;
 
         // Act
-        (string output, int tokencount) result =
+        (string output, int promptTokenCount, int answerTokenCount) result =
             await _aiClient.AnswerQuestion(question, context, maxInputTokens, username, maxOutputTokens);
 
         // Assert
         Assert.NotNull(result.output);
         Assert.False(string.IsNullOrWhiteSpace(result.output));
-        Assert.True(result.tokencount > 0);
+        Assert.True(result.promptTokenCount > 0);
+        Assert.True(result.answerTokenCount > 0);
         _output.WriteLine(result.Item1);
     }
 
