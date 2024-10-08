@@ -210,6 +210,8 @@ public class Program
 
         #endregion
 
+        #region Swagger
+
         app.UseSwagger();
         if (app.Environment.IsDevelopment())
         {
@@ -223,6 +225,9 @@ public class Program
                 }
             });
         }
+
+        #endregion
+
         app.Run();
     }
 }

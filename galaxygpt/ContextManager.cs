@@ -42,7 +42,6 @@ public class ContextManager
     {
         if (_qdrantClient == null)
             throw new InvalidOperationException("The Qdrant client is not available.");
-        question = question.Trim();
 
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
@@ -60,7 +59,14 @@ public class ContextManager
 
         foreach (ScoredPoint searchResult in searchResults)
         {
-            context.Append($"Page: {searchResult.Payload["title"].StringValue}\nContent: {searchResult.Payload["content"].StringValue}\n\n###\n\n");
+            context
+                .AppendLine($"Page: {searchResult.Payload["title"].StringValue}")
+                .AppendLine($"Content: {searchResult.Payload["content"]}")
+                .AppendLine()
+                .AppendLine()
+                .AppendLine("###")
+                .AppendLine()
+                .AppendLine();
         }
 
         return (context.ToString(), _embeddingsTokenizer.CountTokens(question));
