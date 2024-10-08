@@ -3,6 +3,7 @@
 
 using System.ClientModel;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ML.Tokenizers;
@@ -47,9 +48,10 @@ public partial class AiClient(
     public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
-        question = question.Trim();
         CheckQuestion(question, maxInputTokens, maxOutputTokens);
-        await ModerateText(question, moderationClient);
+
+        // Start the moderation task
+        Task moderateQuestionTask = ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
             username = AlphaNumericRegex().Match(username).Value;
@@ -57,12 +59,14 @@ public partial class AiClient(
         List<ChatMessage> messages =
         [
             new SystemChatMessage(OneoffSystemMessage),
-            new UserChatMessage(
-                $"Information:\n{context.Trim()}\n\n---\n\nQuestion: {question}\nUsername: {username ?? "N/A"}")
+            new UserChatMessage(BuildUserMessage(question, context, username))
             {
                 ParticipantName = username ?? null
             }
         ];
+
+        // Wait for moderation to finish before continuing
+        await moderateQuestionTask;
 
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(messages,
             new ChatCompletionOptions
@@ -75,6 +79,22 @@ public partial class AiClient(
         string finalMessage = messages[^1].Content[0].Text;
         await ModerateText(finalMessage, moderationClient);
         return (finalMessage, gptTokenizer.CountTokens(finalMessage));
+    }
+
+    private static string BuildUserMessage(string question, string context, string? username)
+    {
+        StringBuilder userMessage = new StringBuilder()
+            .AppendLine("Information:")
+            .AppendLine(context)
+            .AppendLine()
+            .AppendLine()
+            .AppendLine("---")
+            .AppendLine()
+            .AppendLine()
+            .AppendLine($"Question: {question}")
+            .AppendLine($"Username: {username ?? "N/A"}");
+
+        return userMessage.ToString();
     }
 
     /// <summary>
@@ -128,12 +148,12 @@ public partial class AiClient(
         // 3. We can grab the last UserChatMessage and call AnswerQuestion on it. This means the AI will only have context for the new question, but it will be more performant. (The AI will have no prior information to go off of except for its own responses)
         // For now, I'll go with option 3 since we can expand to option 2 if needed.
 
-        foreach (ChatMessage message in conversation)
-            await ModerateText(message.Content.First().Text, moderationClient);
-
         UserChatMessage
             lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
+
+        // We only need to moderate the last question since it's the only one that is new
+        Task moderationTask = ModerateText(lastQuestion, moderationClient);
 
         CheckQuestion(lastQuestion, null, null);
 
@@ -155,6 +175,8 @@ public partial class AiClient(
         }
 
         conversation.Insert(0, new SystemChatMessage(ConversationSystemMessage));
+
+        await moderationTask;
 
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(conversation,
             new ChatCompletionOptions

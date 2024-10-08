@@ -69,6 +69,6 @@ public class ContextManager
                 .AppendLine();
         }
 
-        return (context.ToString(), _embeddingsTokenizer.CountTokens(question));
+        return (context.ToString().Trim(), _embeddingsTokenizer.CountTokens(question));
     }
 }
