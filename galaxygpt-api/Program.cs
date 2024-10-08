@@ -20,6 +20,9 @@ namespace galaxygpt_api;
 
 public class Program
 {
+    private const string Version = ThisAssembly.Git.Commit;
+    private static readonly JsonSerializerOptions JsonSerializerOptions = new() { WriteIndented = true };
+
     public static void Main(string[] args)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -95,7 +98,6 @@ public class Program
 
         var galaxyGpt = app.Services.GetRequiredService<AiClient>();
         var contextManager = app.Services.GetRequiredService<ContextManager>();
-        const string version = ThisAssembly.Git.Commit;
 
         #region API
 
@@ -103,32 +105,31 @@ public class Program
 
         v1.MapPost("ask", async (AskPayload askPayload) =>
         {
+            var requestStart = Stopwatch.StartNew();
             if (string.IsNullOrWhiteSpace(askPayload.Prompt))
                 return Results.BadRequest("The question cannot be empty.");
 
             Console.WriteLine("Received question:");
-            Console.WriteLine(JsonSerializer.Serialize(askPayload, new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine(JsonSerializer.Serialize(askPayload, JsonSerializerOptions));
 
-            var requestStart = Stopwatch.StartNew();
-
-            (string, int) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
-
-            // hash the username to prevent any potential privacy issues
-            // string? username = askPayload.Username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(askPayload.Username))) : null;
+            (string context, int questionEmbeddingTokens) context = await contextManager.FetchContext(askPayload.Prompt, askPayload.MaxContextLength ?? 5);
 
             try
             {
-                (string, int) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt, context.Item1, username: askPayload.Username, maxOutputTokens: askPayload.MaxLength);
+                (string output, int tokencount) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt,
+                    context.context,
+                    username: askPayload.Username,
+                    maxOutputTokens: askPayload.MaxLength);
                 requestStart.Stop();
 
                 return Results.Json(new AskResponse
                 {
                     Answer = answer.Item1.Trim(),
-                    Context = context.Item1,
+                    Context = context.context,
                     Duration = requestStart.ElapsedMilliseconds.ToString(),
-                    Version = version,
-                    QuestionTokens = context.Item2.ToString(),
-                    ResponseTokens = answer.Item2.ToString()
+                    Version = Version,
+                    QuestionTokens = context.questionEmbeddingTokens.ToString(),
+                    ResponseTokens = answer.tokencount.ToString()
                 });
             }
             catch (BonkedException e)
@@ -194,7 +195,7 @@ public class Program
             return Results.Json(new CompleteChatResponse
             {
                 Conversation = newConversationGeneric,
-                Version = version
+                Version = Version
             });
         }).Produces<CompleteChatResponse>();
         #endregion
