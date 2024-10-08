@@ -32,7 +32,7 @@ public partial class AiClient(
     /// <summary>
     ///     Answers a question based on the provided context
     /// </summary>
-    /// <remarks>This and <see cref="FollowUpConversation"/> should probably be merged.</remarks>
+    /// <remarks>This and <see cref="FollowUpConversation" /> should probably be merged.</remarks>
     /// <param name="question">The question to answer</param>
     /// <param name="context">Context to provide the AI to help in answering the question</param>
     /// <param name="maxInputTokens">
@@ -45,7 +45,8 @@ public partial class AiClient(
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
     /// <exception cref="BonkedException">The moderation API flagged the response</exception>
-    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
+    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context,
+        int? maxInputTokens = null,
         string? username = null, int? maxOutputTokens = null)
     {
         CheckQuestion(question, maxInputTokens, maxOutputTokens);
@@ -136,10 +137,11 @@ public partial class AiClient(
     ///     Continues a conversation.
     /// </summary>
     /// <param name="conversation">The conversation to use</param>
+    /// <param name="context"></param>
     /// <param name="maxOutputTokens"></param>
     /// <returns>The new <see cref="ChatMessage" /> List</returns>
     public async Task<List<ChatMessage>> FollowUpConversation(List<ChatMessage> conversation,
-        int? maxOutputTokens = null)
+        string? context = null, int? maxOutputTokens = null)
     {
         // The conversation is unlikely to be in the same format as the one in AnswerQuestion. Notably, there will be no Context or Username. Just the raw question.
         // We can go two ways about this:
@@ -157,22 +159,12 @@ public partial class AiClient(
 
         CheckQuestion(lastQuestion, null, null);
 
-        // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
-        if (!lastQuestion.Contains("context: ", StringComparison.OrdinalIgnoreCase))
-        {
-            // The last message does not contain a context. We need to find the context.
+        // Fetch the context for the last question if it wasn't provided
+        context ??= (await contextManager.FetchContext(lastQuestion)).Item1;
 
-            string context = (await contextManager.FetchContext(lastQuestion)).Item1;
-
-            conversation.Remove(lastUserMessage);
-            conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nInformation:\n{context}"));
-
-            // Update lastUserMessage and lastQuestion to point to the new UserChatMessage
-            // Wait is this even necessary? We're not using lastUserMessage or lastQuestion after this point.
-            // Okay let's comment this out for now and see if it breaks anything.
-            // lastUserMessage = conversation.OfType<UserChatMessage>().Last();
-            // lastQuestion = lastUserMessage.Content.First().Text;
-        }
+        // Remove the last UserChatMessage and add a new one with the context
+        conversation.Remove(lastUserMessage);
+        conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nInformation:\n{context}"));
 
         conversation.Insert(0, new SystemChatMessage(ConversationSystemMessage));
 
