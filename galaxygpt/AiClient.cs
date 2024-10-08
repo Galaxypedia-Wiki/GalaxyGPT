@@ -3,6 +3,7 @@
 
 using System.ClientModel;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,7 +63,7 @@ public partial class AiClient(
             new SystemChatMessage(OneoffSystemMessage),
             new UserChatMessage(BuildUserMessage(question, context, username))
             {
-                ParticipantName = username ?? null
+                ParticipantName = username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(username))) : null
             }
         ];
 
