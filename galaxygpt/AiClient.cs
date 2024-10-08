@@ -31,6 +31,7 @@ public partial class AiClient(
     /// <summary>
     ///     Answers a question based on the provided context
     /// </summary>
+    /// <remarks>This and <see cref="FollowUpConversation"/> should probably be merged.</remarks>
     /// <param name="question">The question to answer</param>
     /// <param name="context">Context to provide the AI to help in answering the question</param>
     /// <param name="maxInputTokens">
@@ -112,8 +113,7 @@ public partial class AiClient(
     }
 
     /// <summary>
-    ///     Continues a conversation. Will pick the last <see cref="UserChatMessage" />, grab the context, then call
-    ///     <see cref="AnswerQuestion" />
+    ///     Continues a conversation.
     /// </summary>
     /// <param name="conversation">The conversation to use</param>
     /// <param name="maxOutputTokens"></param>

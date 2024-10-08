@@ -181,8 +181,9 @@ public class AiClientTests
     [Fact]
     public async Task FollowUpConversationTest()
     {
-        // Okay this is a *little* confusing. The way this function works is by taking in a list of ChatMessages and adding a new AssistantChatMessage to the end of it.
-        // Because of that, using the same client & mocking setup for AnswerQuestion is fine here. Both should return the same thing in the end
+        // Okay this is a *little* confusing. The way this function works is by taking in a list of ChatMessages and
+        // adding a new AssistantChatMessage to the end of it. Because of that, using the same client & mocking setup
+        // for AnswerQuestion is fine here. Both should return the same thing in the end.
         List<ChatMessage> conversation =
         [
             new UserChatMessage("goofy ahh uncle productions."),
@@ -194,7 +195,7 @@ public class AiClientTests
         List<ChatMessage> test = await _aiClient.FollowUpConversation(conversation);
 
         Assert.NotNull(test);
-        Assert.True(test.OfType<SystemChatMessage>().Count() == 1);
+        Assert.Single(test.OfType<SystemChatMessage>());
         Assert.True(test.OfType<UserChatMessage>().Any());
         Assert.True(test.OfType<AssistantChatMessage>().Any());
 
