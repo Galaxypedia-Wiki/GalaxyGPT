@@ -117,7 +117,6 @@ public class Program
             try
             {
                 (string output, int tokencount) answer = await galaxyGpt.AnswerQuestion(askPayload.Prompt,
-                    context.context,
                     username: askPayload.Username,
                     maxOutputTokens: askPayload.MaxLength);
                 requestStart.Stop();

@@ -166,19 +166,6 @@ public class AiClientTests
     }
 
     [Fact]
-    public async Task CheckQuestionThrowsArgumentExceptionWhenQuestionIsTooLong()
-    {
-        // Arrange
-        const string question = "What is the meaning of life?";
-        const string context =
-            "The meaning of life is a philosophical question concerning the significance of life or existence in general.";
-        int? maxInputTokens = 1;
-
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => _aiClient.AnswerQuestion(question, context, maxInputTokens));
-    }
-
-    [Fact]
     public async Task FollowUpConversationTest()
     {
         // Okay this is a *little* confusing. The way this function works is by taking in a list of ChatMessages and
@@ -192,7 +179,7 @@ public class AiClientTests
             new UserChatMessage("try not to say N word challenge. Context: ")
         ];
 
-        List<ChatMessage> test = await _aiClient.FollowUpConversation(conversation);
+        List<ChatMessage> test = await _aiClient.FollowUpConversation(conversation, "context");
 
         Assert.NotNull(test);
         Assert.Single(test.OfType<SystemChatMessage>());

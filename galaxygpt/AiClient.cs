@@ -35,7 +35,7 @@ public partial class AiClient(
     /// </summary>
     /// <remarks>This and <see cref="FollowUpConversation" /> should probably be merged.</remarks>
     /// <param name="question">The question to answer</param>
-    /// <param name="context">Context to provide the AI to help in answering the question</param>
+    /// <param name="context">Context to provide the AI to help in answering the question. You typically want to leave this blank since the defaults are sane.</param>
     /// <param name="maxInputTokens">
     ///     The maximum amount of tokens the question can contain before it is refused. If left blank, is
     ///     set to unlimited
@@ -46,17 +46,17 @@ public partial class AiClient(
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
     /// <exception cref="BonkedException">The moderation API flagged the response</exception>
-    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context,
-        int? maxInputTokens = null,
-        string? username = null, int? maxOutputTokens = null)
+    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string? context = null,
+        int? maxInputTokens = null, string? username = null, int? maxOutputTokens = null)
     {
-        CheckQuestion(question, maxInputTokens, maxOutputTokens);
+        CheckQuestion(question, maxOutputTokens);
 
-        // Start the moderation task
-        Task moderateQuestionTask = ModerateText(question, moderationClient);
+        await ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
             username = AlphaNumericRegex().Match(username).Value;
+
+        context ??= (await contextManager.FetchContext(question)).Item1;
 
         List<ChatMessage> messages =
         [
@@ -66,9 +66,6 @@ public partial class AiClient(
                 ParticipantName = username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(username))) : null
             }
         ];
-
-        // Wait for moderation to finish before continuing
-        await moderateQuestionTask;
 
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(messages,
             new ChatCompletionOptions
@@ -104,16 +101,12 @@ public partial class AiClient(
     /// </summary>
     /// <remarks>Checks if the question is just whitespace, and optionally if it's too long</remarks>
     /// <param name="question"></param>
-    /// <param name="maxInputTokens"></param>
     /// <param name="maxOutputTokens"></param>
     /// <exception cref="ArgumentException"></exception>
-    private void CheckQuestion(string question, int? maxInputTokens, int? maxOutputTokens)
+    private static void CheckQuestion(string question, int? maxOutputTokens = null)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty");
-
-        if (maxInputTokens != null && gptTokenizer.CountTokens(question) > maxInputTokens)
-            throw new ArgumentException("The question is too long to be answered");
 
         if (maxOutputTokens == 0)
             throw new ArgumentException("The maximum output token count cannot be 0");
@@ -158,7 +151,7 @@ public partial class AiClient(
         // We only need to moderate the last question since it's the only one that is new
         Task moderationTask = ModerateText(lastQuestion, moderationClient);
 
-        CheckQuestion(lastQuestion, null, null);
+        CheckQuestion(lastQuestion);
 
         // Fetch the context for the last question if it wasn't provided
         context ??= (await contextManager.FetchContext(lastQuestion)).Item1;
