@@ -61,7 +61,7 @@ public class ContextManager
         {
             context
                 .AppendLine($"Page: {searchResult.Payload["title"].StringValue}")
-                .AppendLine($"Content: {searchResult.Payload["content"]}")
+                .AppendLine($"Content: {searchResult.Payload["content"].StringValue}")
                 .AppendLine()
                 .AppendLine()
                 .AppendLine("###")
