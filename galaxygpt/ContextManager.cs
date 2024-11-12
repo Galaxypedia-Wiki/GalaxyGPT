@@ -41,11 +41,11 @@ public class ContextManager
     /// <exception cref="ArgumentException"></exception>
     public virtual async Task<(string context, int questiontokens)> FetchContext(string question, ulong maxResults = 5)
     {
-        if (_qdrantClient == null)
-            throw new InvalidOperationException("The Qdrant client is not available.");
-
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
+
+        if (_qdrantClient == null)
+            throw new InvalidOperationException("The Qdrant client is not available.");
 
         ClientResult<Embedding>? questionEmbeddings = await _embeddingClient.GenerateEmbeddingAsync(question);
 
@@ -62,7 +62,7 @@ public class ContextManager
         {
             context
                 .AppendLine($"Page: {searchResult.Payload["title"].StringValue}")
-                .AppendLine($"Content: {searchResult.Payload["content"]}")
+                .AppendLine($"Content: {searchResult.Payload["content"].StringValue}")
                 .AppendLine()
                 .AppendLine()
                 .AppendLine("###")
@@ -70,6 +70,6 @@ public class ContextManager
                 .AppendLine();
         }
 
-        return (context.ToString(), _embeddingsTokenizer.CountTokens(question));
+        return (context.ToString().Trim(), _embeddingsTokenizer.CountTokens(question));
     }
 }

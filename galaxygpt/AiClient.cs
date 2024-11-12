@@ -3,6 +3,8 @@
 
 using System.ClientModel;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ML.Tokenizers;
@@ -31,9 +33,9 @@ public partial class AiClient(
     /// <summary>
     ///     Answers a question based on the provided context
     /// </summary>
-    /// <remarks>This and <see cref="FollowUpConversation"/> should probably be merged.</remarks>
+    /// <remarks>This and <see cref="FollowUpConversation" /> should probably be merged.</remarks>
     /// <param name="question">The question to answer</param>
-    /// <param name="context">Context to provide the AI to help in answering the question</param>
+    /// <param name="context">Context to provide the AI to help in answering the question. You typically want to leave this blank since the defaults are sane.</param>
     /// <param name="maxInputTokens">
     ///     The maximum amount of tokens the question can contain before it is refused. If left blank, is
     ///     set to unlimited
@@ -44,23 +46,24 @@ public partial class AiClient(
     /// <exception cref="ArgumentException"></exception>
     /// <exception cref="InvalidOperationException"></exception>
     /// <exception cref="BonkedException">The moderation API flagged the response</exception>
-    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string context, int? maxInputTokens = null,
-        string? username = null, int? maxOutputTokens = null)
+    public async Task<(string output, int tokencount)> AnswerQuestion(string question, string? context = null,
+        int? maxInputTokens = null, string? username = null, int? maxOutputTokens = null)
     {
-        question = question.Trim();
-        CheckQuestion(question, maxInputTokens, maxOutputTokens);
+        CheckQuestion(question, maxOutputTokens);
+
         await ModerateText(question, moderationClient);
 
         if (!string.IsNullOrWhiteSpace(username))
             username = AlphaNumericRegex().Match(username).Value;
 
+        context ??= (await contextManager.FetchContext(question)).Item1;
+
         List<ChatMessage> messages =
         [
             new SystemChatMessage(OneoffSystemMessage),
-            new UserChatMessage(
-                $"Information:\n{context.Trim()}\n\n---\n\nQuestion: {question}\nUsername: {username ?? "N/A"}")
+            new UserChatMessage(BuildUserMessage(question, context, username))
             {
-                ParticipantName = username ?? null
+                ParticipantName = username != null ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(username))) : null
             }
         ];
 
@@ -77,21 +80,33 @@ public partial class AiClient(
         return (finalMessage, gptTokenizer.CountTokens(finalMessage));
     }
 
+    private static string BuildUserMessage(string question, string context, string? username)
+    {
+        StringBuilder userMessage = new StringBuilder()
+            .AppendLine("Information:")
+            .AppendLine(context)
+            .AppendLine()
+            .AppendLine()
+            .AppendLine("---")
+            .AppendLine()
+            .AppendLine()
+            .AppendLine($"Question: {question}")
+            .AppendLine($"Username: {username ?? "N/A"}");
+
+        return userMessage.ToString();
+    }
+
     /// <summary>
     ///     Perform checks on the question to ensure it is valid
     /// </summary>
     /// <remarks>Checks if the question is just whitespace, and optionally if it's too long</remarks>
     /// <param name="question"></param>
-    /// <param name="maxInputTokens"></param>
     /// <param name="maxOutputTokens"></param>
     /// <exception cref="ArgumentException"></exception>
-    private void CheckQuestion(string question, int? maxInputTokens, int? maxOutputTokens)
+    private static void CheckQuestion(string question, int? maxOutputTokens = null)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty");
-
-        if (maxInputTokens != null && gptTokenizer.CountTokens(question) > maxInputTokens)
-            throw new ArgumentException("The question is too long to be answered");
 
         if (maxOutputTokens == 0)
             throw new ArgumentException("The maximum output token count cannot be 0");
@@ -116,10 +131,11 @@ public partial class AiClient(
     ///     Continues a conversation.
     /// </summary>
     /// <param name="conversation">The conversation to use</param>
+    /// <param name="context"></param>
     /// <param name="maxOutputTokens"></param>
     /// <returns>The new <see cref="ChatMessage" /> List</returns>
     public async Task<List<ChatMessage>> FollowUpConversation(List<ChatMessage> conversation,
-        int? maxOutputTokens = null)
+        string? context = null, int? maxOutputTokens = null)
     {
         // The conversation is unlikely to be in the same format as the one in AnswerQuestion. Notably, there will be no Context or Username. Just the raw question.
         // We can go two ways about this:
@@ -128,33 +144,25 @@ public partial class AiClient(
         // 3. We can grab the last UserChatMessage and call AnswerQuestion on it. This means the AI will only have context for the new question, but it will be more performant. (The AI will have no prior information to go off of except for its own responses)
         // For now, I'll go with option 3 since we can expand to option 2 if needed.
 
-        foreach (ChatMessage message in conversation)
-            await ModerateText(message.Content.First().Text, moderationClient);
-
         UserChatMessage
             lastUserMessage = conversation.OfType<UserChatMessage>().Last(); // this is the new (follow up) question
         string lastQuestion = lastUserMessage.Content.First().Text;
 
-        CheckQuestion(lastQuestion, null, null);
+        // We only need to moderate the last question since it's the only one that is new
+        Task moderationTask = ModerateText(lastQuestion, moderationClient);
 
-        // TODO: This is unreliable. We should have the caller specify whether or not the last message contains a context.
-        if (!lastQuestion.Contains("context: ", StringComparison.OrdinalIgnoreCase))
-        {
-            // The last message does not contain a context. We need to find the context.
+        CheckQuestion(lastQuestion);
 
-            string context = (await contextManager.FetchContext(lastQuestion)).Item1;
+        // Fetch the context for the last question if it wasn't provided
+        context ??= (await contextManager.FetchContext(lastQuestion)).Item1;
 
-            conversation.Remove(lastUserMessage);
-            conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nInformation:\n{context}"));
-
-            // Update lastUserMessage and lastQuestion to point to the new UserChatMessage
-            // Wait is this even necessary? We're not using lastUserMessage or lastQuestion after this point.
-            // Okay let's comment this out for now and see if it breaks anything.
-            // lastUserMessage = conversation.OfType<UserChatMessage>().Last();
-            // lastQuestion = lastUserMessage.Content.First().Text;
-        }
+        // Remove the last UserChatMessage and add a new one with the context
+        conversation.Remove(lastUserMessage);
+        conversation.Add(new UserChatMessage($"Question: {lastQuestion}\n\nInformation:\n{context}"));
 
         conversation.Insert(0, new SystemChatMessage(ConversationSystemMessage));
+
+        await moderationTask;
 
         ClientResult<ChatCompletion>? clientResult = await chatClient.CompleteChatAsync(conversation,
             new ChatCompletionOptions
