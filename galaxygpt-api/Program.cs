@@ -14,6 +14,7 @@ using Microsoft.ML.Tokenizers;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
+using Qdrant.Client;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace galaxygpt_api;
@@ -73,16 +74,20 @@ public class Program
         string gptModel = configuration["GPT_MODEL"] ?? "gpt-4o-mini";
         string textEmbeddingModel = configuration["TEXT_EMBEDDING_MODEL"] ?? "text-embedding-3-small";
         string moderationModel = configuration["MODERATION_MODEL"] ?? "text-moderation-latest";
+        string[] qdrantUrlAndPort = (configuration["QDRANT_URL"] ?? "qdrant").Split(":");
 
         builder.Services.AddSingleton(openAiClient.GetChatClient(gptModel));
         builder.Services.AddSingleton(openAiClient.GetEmbeddingClient(textEmbeddingModel));
         builder.Services.AddSingleton(openAiClient.GetModerationClient(moderationModel));
         builder.Services.AddKeyedSingleton("gptTokenizer", TiktokenTokenizer.CreateForModel(gptModel));
         builder.Services.AddKeyedSingleton("embeddingsTokenizer", TiktokenTokenizer.CreateForModel(textEmbeddingModel));
+        builder.Services.AddSingleton(_ => new QdrantClient(qdrantUrlAndPort[0],
+            qdrantUrlAndPort.Length > 1 ? int.Parse(qdrantUrlAndPort[1]) : 6334));
+
         builder.Services.AddSingleton(provider => new ContextManager(
             provider.GetRequiredService<EmbeddingClient>(),
             provider.GetRequiredKeyedService<TiktokenTokenizer>("embeddingsTokenizer"),
-            configuration["QDRANT_URL"]
+            provider.GetRequiredService<QdrantClient>()
         ));
         builder.Services.AddSingleton<AiClient>();
 

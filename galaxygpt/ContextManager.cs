@@ -24,21 +24,22 @@ public class ContextManager
     public ContextManager(EmbeddingClient embeddingClient,
         [FromKeyedServices("embeddingsTokenizer")]
         TiktokenTokenizer embeddingsTokenizer,
-        string? qdrantUrl)
+        QdrantClient qdrantClient)
     {
         _embeddingClient = embeddingClient;
         _embeddingsTokenizer = embeddingsTokenizer;
-        string[] qdrantUrlAndPort = (qdrantUrl ?? "qdrant").Split(":");
-
-        // TODO: Move to DI (its impossible to test this class because we can't mock QdrantClient)
-        // Okay turns out this is probably going to be a bit more difficult than I thought. It doesn't seem like
-        // QDrantClient can be mocked (it doesnt expose any virtual members). We'd probably have to create a method for
-        // running the query and then mock that method instead of QdrantClient's methods.
-        _qdrantClient = new QdrantClient(qdrantUrlAndPort[0],
-            qdrantUrlAndPort.Length > 1 ? int.Parse(qdrantUrlAndPort[1]) : 6334);
+        _qdrantClient = qdrantClient;
     }
 
-    public async Task<(string, int)> FetchContext(string question, ulong maxResults = 5)
+    /// <summary>
+    /// Get the context for a question
+    /// </summary>
+    /// <param name="question">The question to get the context for</param>
+    /// <param name="maxResults">How many results to fetch. Defaults to top 5</param>
+    /// <returns>A tuple containing the context and the amount of embedding tokens the question used up</returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    /// <exception cref="ArgumentException"></exception>
+    public virtual async Task<(string context, int questiontokens)> FetchContext(string question, ulong maxResults = 5)
     {
         if (string.IsNullOrWhiteSpace(question))
             throw new ArgumentException("The question cannot be empty.");
